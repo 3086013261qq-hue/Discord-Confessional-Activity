@@ -1,0 +1,174 @@
+{
+  "schema_version": "1.0",
+  "product": "Discord Confessional Activity",
+  "selection": {
+    "alignment_from_verdict": {
+      "heaven": "upright",
+      "hell": "reversed"
+    },
+    "character_weights": {
+      "tatsumaki": 1,
+      "ren_yamashiro": 1,
+      "yuzuha_lee": 1
+    },
+    "rarity_weights": {
+      "R": 0.6,
+      "SR": 0.3,
+      "SSR": 0.1
+    },
+    "within_rarity": "uniform"
+  },
+  "asset_policy": {
+    "raw_base": "https://raw.githubusercontent.com/3086013261qq-hue/Discord-Confessional-Activity/main/",
+    "card_specific_priority": true,
+    "card_specific_pattern": "public/assets/tarot/cards/{card_id}.{ext}",
+    "fallback_strategy": "deterministic_hash_from_character_pool",
+    "fallback_note": "hash(card_id) % art_pool.length; adding images may only reshuffle after manifest version bump",
+    "supported_extensions": ["webp", "png", "jpg", "jpeg"]
+  },
+  "characters": {
+    "tatsumaki": {
+      "display_name": "龙卷",
+      "arcana": "THE TEMPEST｜风暴",
+      "theme": "暴力训诫 / 强硬保护 / 念动力压迫",
+      "asset_dir": "public/assets/tarot/characters/龙卷/",
+      "art_pool": [
+        "95672036_p1_master1200.webp",
+        "images (20).jpeg"
+      ],
+      "summon_animation": "summon_tatsumaki",
+      "palette": ["black", "white", "emerald", "gold"]
+    },
+    "ren_yamashiro": {
+      "display_name": "山城恋",
+      "arcana": "THE DOMINION｜支配",
+      "theme": "高位命令 / 服从仪式 / 修女长认证",
+      "asset_dir": "public/assets/tarot/characters/山城恋/",
+      "art_pool": [
+        "150648311-989193ee0f51ed2a0c376e275a283828_p0_master1200.webp",
+        "images (18).jpeg",
+        "images (19).jpeg"
+      ],
+      "summon_animation": "summon_ren",
+      "palette": ["black", "ivory", "deep_purple", "dark_red", "gold"]
+    },
+    "yuzuha_lee": {
+      "display_name": "李柚巴",
+      "arcana": "THE WAGER｜赌局",
+      "theme": "赌局 / 翻倍 / 重抽 / Jackpot",
+      "asset_dir": "public/assets/tarot/characters/李柚巴/",
+      "art_pool": [
+        "-9lddQ2u-4ckqK1eT1kScg-fy.jpg",
+        "120600389_p1_master1200.webp",
+        "124559646_p0_master1200.webp",
+        "137522296_p0_master1200.webp",
+        "146260292_p0_master1200.webp",
+        "146266199_p0_master1200.webp",
+        "images (17).jpeg"
+      ],
+      "summon_animation": "summon_yuzuha",
+      "palette": ["black", "white", "wine_red", "gold", "teal"]
+    }
+  },
+  "ssr_animations": {
+    "H-TAT-10": {
+      "key": "ssr_tatsumaki_eye_of_storm_blessing",
+      "sequence": ["freeze_800ms", "emerald_shards_reverse", "tatsumaki_silhouette", "giant_emerald_eye_of_storm", "double_bell", "low_frequency_psychic_boom", "card_reveal"]
+    },
+    "P-TAT-10": {
+      "key": "ssr_tatsumaki_eye_of_storm",
+      "sequence": ["blackout_600ms", "green_eye_glow", "stained_glass_shatter_float", "five_cards_blast_away", "single_reversed_card_hold", "heavy_bell", "card_reveal"]
+    },
+    "H-REN-10": {
+      "key": "ssr_ren_beside_the_throne",
+      "sequence": ["candles_out_500ms", "throne_gold_lines_light", "ren_raise_eyes", "five_cards_split", "center_upright_card", "triple_bell", "low_choir", "card_reveal"]
+    },
+    "P-REN-10": {
+      "key": "ssr_ren_bow_before_the_throne",
+      "sequence": ["near_blackout", "throne_and_eye_glow", "five_cards_stand", "all_cards_turn_back", "center_reversed_card_descend", "silent_flip", "silence_800ms", "heavy_bell", "choice_accept_or_plead"]
+    },
+    "H-LYB-10": {
+      "key": "ssr_yuzuha_jackpot",
+      "sequence": ["darken", "three_gold_slots_roll", "slot1_heaven", "slot2_heaven", "slot3_pass_hell_then_heaven", "gold_stained_glass_burst", "bell_plus_chip_drop", "card_reveal"]
+    },
+    "P-LYB-10": {
+      "key": "ssr_yuzuha_house_wins",
+      "sequence": ["casino_tarot_shuffle", "fake_jackpot_build", "symbols_flip_to_house_wins", "wine_red_black_flash", "chips_fall_backward", "dealer_smile_silhouette", "card_reveal"]
+    }
+  },
+  "execution_types": {
+    "nickname": "temporary_nickname_with_safe_restore",
+    "role": "temporary_bot_managed_cosmetic_role",
+    "state": "activity_session_or_account_state",
+    "interaction": "activity_required_interaction",
+    "cleanse": "remove_bot_owned_effects_only",
+    "compound": "multiple_effects_with_priority_rules"
+  },
+  "cards": [
+    {"id":"H-TAT-01","character":"tatsumaki","alignment":"upright","rarity":"R","name":"风暴庇护","effect_key":"role_tatsumaki_protected"},
+    {"id":"H-TAT-02","character":"tatsumaki","alignment":"upright","rarity":"R","name":"勉强合格","effect_key":"nickname_tatsumaki_barely_approved"},
+    {"id":"H-TAT-03","character":"tatsumaki","alignment":"upright","rarity":"R","name":"小小赦免","effect_key":"cleanse_or_immunity_r"},
+    {"id":"H-TAT-04","character":"tatsumaki","alignment":"upright","rarity":"R","name":"念动力牵引","effect_key":"state_priority_confession"},
+    {"id":"H-TAT-05","character":"tatsumaki","alignment":"upright","rarity":"R","name":"嘴硬的夸奖","effect_key":"role_tatsumaki_not_scolded"},
+    {"id":"H-TAT-06","character":"tatsumaki","alignment":"upright","rarity":"SR","name":"不许欺负她","effect_key":"role_storm_protected_target"},
+    {"id":"H-TAT-07","character":"tatsumaki","alignment":"upright","rarity":"SR","name":"风暴偏爱","effect_key":"nickname_role_storm_favor"},
+    {"id":"H-TAT-08","character":"tatsumaki","alignment":"upright","rarity":"SR","name":"强制免罪","effect_key":"cleanse_tatsumaki_r"},
+    {"id":"H-TAT-09","character":"tatsumaki","alignment":"upright","rarity":"SR","name":"风暴重抽","effect_key":"state_hell_reroll_token"},
+    {"id":"H-TAT-10","character":"tatsumaki","alignment":"upright","rarity":"SSR","name":"暴风眼的庇护","effect_key":"compound_tatsumaki_ssr_blessing","animation_key":"ssr_tatsumaki_eye_of_storm_blessing"},
+
+    {"id":"P-TAT-01","character":"tatsumaki","alignment":"reversed","rarity":"R","name":"念动力罚站","effect_key":"role_storm_discipline"},
+    {"id":"P-TAT-02","character":"tatsumaki","alignment":"reversed","rarity":"R","name":"屁股训诫","effect_key":"nickname_spanked_by_tatsumaki"},
+    {"id":"P-TAT-03","character":"tatsumaki","alignment":"reversed","rarity":"R","name":"拎起来训话","effect_key":"nickname_lifted_and_scolded"},
+    {"id":"P-TAT-04","character":"tatsumaki","alignment":"reversed","rarity":"R","name":"不许顶嘴","effect_key":"role_no_talking_back"},
+    {"id":"P-TAT-05","character":"tatsumaki","alignment":"reversed","rarity":"R","name":"笨蛋信徒","effect_key":"nickname_tatsumaki_certified_fool"},
+    {"id":"P-TAT-06","character":"tatsumaki","alignment":"reversed","rarity":"SR","name":"风暴训诫","effect_key":"nickname_role_storm_discipline"},
+    {"id":"P-TAT-07","character":"tatsumaki","alignment":"reversed","rarity":"SR","name":"三连警告","effect_key":"interaction_three_acknowledgements_with_stickers"},
+    {"id":"P-TAT-08","character":"tatsumaki","alignment":"reversed","rarity":"SR","name":"风暴债务","effect_key":"role_storm_debt"},
+    {"id":"P-TAT-09","character":"tatsumaki","alignment":"reversed","rarity":"SR","name":"风暴公开处刑","effect_key":"nickname_role_public_lesson"},
+    {"id":"P-TAT-10","character":"tatsumaki","alignment":"reversed","rarity":"SSR","name":"暴风眼","effect_key":"compound_tatsumaki_ssr_punishment","animation_key":"ssr_tatsumaki_eye_of_storm"},
+
+    {"id":"H-REN-01","character":"ren_yamashiro","alignment":"upright","rarity":"R","name":"许可","effect_key":"role_head_nun_permission"},
+    {"id":"H-REN-02","character":"ren_yamashiro","alignment":"upright","rarity":"R","name":"乖孩子认证","effect_key":"nickname_ren_good_child"},
+    {"id":"H-REN-03","character":"ren_yamashiro","alignment":"upright","rarity":"R","name":"优先召见","effect_key":"state_priority_confession"},
+    {"id":"H-REN-04","character":"ren_yamashiro","alignment":"upright","rarity":"R","name":"修女长的夸奖","effect_key":"role_ren_praise"},
+    {"id":"H-REN-05","character":"ren_yamashiro","alignment":"upright","rarity":"R","name":"今日免礼","effect_key":"state_command_skip_token"},
+    {"id":"H-REN-06","character":"ren_yamashiro","alignment":"upright","rarity":"SR","name":"修女长的宠儿","effect_key":"role_head_nun_favorite"},
+    {"id":"H-REN-07","character":"ren_yamashiro","alignment":"upright","rarity":"SR","name":"御前嘉奖","effect_key":"nickname_role_ren_award"},
+    {"id":"H-REN-08","character":"ren_yamashiro","alignment":"upright","rarity":"SR","name":"撤销命令","effect_key":"cleanse_ren_r_sr"},
+    {"id":"H-REN-09","character":"ren_yamashiro","alignment":"upright","rarity":"SR","name":"第二次机会","effect_key":"state_judgment_redraw_token"},
+    {"id":"H-REN-10","character":"ren_yamashiro","alignment":"upright","rarity":"SSR","name":"王座之侧","effect_key":"compound_ren_ssr_blessing","animation_key":"ssr_ren_beside_the_throne"},
+
+    {"id":"P-REN-01","character":"ren_yamashiro","alignment":"reversed","rarity":"R","name":"听话","effect_key":"role_listen_to_head_nun"},
+    {"id":"P-REN-02","character":"ren_yamashiro","alignment":"reversed","rarity":"R","name":"低头反省","effect_key":"nickname_reflecting_before_ren"},
+    {"id":"P-REN-03","character":"ren_yamashiro","alignment":"reversed","rarity":"R","name":"口头命令","effect_key":"interaction_acknowledge_order_with_sticker"},
+    {"id":"P-REN-04","character":"ren_yamashiro","alignment":"reversed","rarity":"R","name":"笨蛋信徒","effect_key":"nickname_ren_certified_fool"},
+    {"id":"P-REN-05","character":"ren_yamashiro","alignment":"reversed","rarity":"R","name":"值日生","effect_key":"role_confessional_duty"},
+    {"id":"P-REN-06","character":"ren_yamashiro","alignment":"reversed","rarity":"SR","name":"绝对命令","effect_key":"interaction_absolute_order_three_choices"},
+    {"id":"P-REN-07","character":"ren_yamashiro","alignment":"reversed","rarity":"SR","name":"乖狗狗认证","effect_key":"nickname_role_good_dog"},
+    {"id":"P-REN-08","character":"ren_yamashiro","alignment":"reversed","rarity":"SR","name":"服从记录","effect_key":"role_ren_recorded"},
+    {"id":"P-REN-09","character":"ren_yamashiro","alignment":"reversed","rarity":"SR","name":"御前反省","effect_key":"nickname_role_three_accept_judgment"},
+    {"id":"P-REN-10","character":"ren_yamashiro","alignment":"reversed","rarity":"SSR","name":"伏首","effect_key":"compound_ren_ssr_bow_or_plead","animation_key":"ssr_ren_bow_before_the_throne"},
+
+    {"id":"H-LYB-01","character":"yuzuha_lee","alignment":"upright","rarity":"R","name":"庄家心情不错","effect_key":"role_dealer_lets_you_go"},
+    {"id":"H-LYB-02","character":"yuzuha_lee","alignment":"upright","rarity":"R","name":"小赢一把","effect_key":"nickname_yuzuha_lucky"},
+    {"id":"H-LYB-03","character":"yuzuha_lee","alignment":"upright","rarity":"R","name":"好运筹码","effect_key":"state_lucky_chip"},
+    {"id":"H-LYB-04","character":"yuzuha_lee","alignment":"upright","rarity":"R","name":"自由换牌","effect_key":"state_free_reroll"},
+    {"id":"H-LYB-05","character":"yuzuha_lee","alignment":"upright","rarity":"R","name":"幸运客人","effect_key":"role_yuzuha_lucky_guest"},
+    {"id":"H-LYB-06","character":"yuzuha_lee","alignment":"upright","rarity":"SR","name":"赔率翻倍","effect_key":"state_double_reward_duration"},
+    {"id":"H-LYB-07","character":"yuzuha_lee","alignment":"upright","rarity":"SR","name":"赢回来了","effect_key":"cleanse_one_r_sr_punishment"},
+    {"id":"H-LYB-08","character":"yuzuha_lee","alignment":"upright","rarity":"SR","name":"庄家偏爱","effect_key":"nickname_role_dealer_favor"},
+    {"id":"H-LYB-09","character":"yuzuha_lee","alignment":"upright","rarity":"SR","name":"双倍好运","effect_key":"compound_extra_yuzuha_r_heaven"},
+    {"id":"H-LYB-10","character":"yuzuha_lee","alignment":"upright","rarity":"SSR","name":"JACKPOT","effect_key":"compound_yuzuha_ssr_jackpot","animation_key":"ssr_yuzuha_jackpot"},
+
+    {"id":"P-LYB-01","character":"yuzuha_lee","alignment":"reversed","rarity":"R","name":"小输一把","effect_key":"nickname_just_lost_to_yuzuha"},
+    {"id":"P-LYB-02","character":"yuzuha_lee","alignment":"reversed","rarity":"R","name":"赌债未清","effect_key":"role_gambling_debt"},
+    {"id":"P-LYB-03","character":"yuzuha_lee","alignment":"reversed","rarity":"R","name":"嘴硬的输家","effect_key":"nickname_sore_loser"},
+    {"id":"P-LYB-04","character":"yuzuha_lee","alignment":"reversed","rarity":"R","name":"空手而归","effect_key":"state_remove_luck_or_bad_hand_role"},
+    {"id":"P-LYB-05","character":"yuzuha_lee","alignment":"reversed","rarity":"R","name":"再来一局","effect_key":"interaction_one_more_round_50_50"},
+    {"id":"P-LYB-06","character":"yuzuha_lee","alignment":"reversed","rarity":"SR","name":"Double or Nothing","effect_key":"interaction_double_or_nothing_server_rng"},
+    {"id":"P-LYB-07","character":"yuzuha_lee","alignment":"reversed","rarity":"SR","name":"庄家抽成","effect_key":"state_dealer_cut"},
+    {"id":"P-LYB-08","character":"yuzuha_lee","alignment":"reversed","rarity":"SR","name":"牌桌反面教材","effect_key":"nickname_role_table_bad_example"},
+    {"id":"P-LYB-09","character":"yuzuha_lee","alignment":"reversed","rarity":"SR","name":"梭哈失败","effect_key":"nickname_role_all_in_lost"},
+    {"id":"P-LYB-10","character":"yuzuha_lee","alignment":"reversed","rarity":"SSR","name":"庄家通吃","effect_key":"compound_yuzuha_ssr_house_wins","animation_key":"ssr_yuzuha_house_wins"}
+  ]
+}
