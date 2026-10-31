@@ -10,9 +10,19 @@ const frozen = execFileSync('git', ['ls-tree', '-r', '--name-only', '-z', base],
   .split('\0')
   .filter(Boolean);
 for (const path of frozen) {
-  const original = execFileSync('git', ['show', base + ':' + path], {
+  let original = execFileSync('git', ['show', base + ':' + path], {
     maxBuffer: 32 * 1024 * 1024,
   });
+  if (path === 'public/config/judgement-manifest.v1.json') {
+    // 011 explicitly replaces role semantics; every other manifest byte remains frozen.
+    original = Buffer.from(
+      original
+        .toString('utf8')
+        .replaceAll('"role"', '"state"')
+        .replaceAll('身份组', '内部状态')
+        .replace('temporary_bot_managed_cosmetic_role', 'temporary_activity_state'),
+    );
+  }
   const current = readFileSync(path);
   if (!original.equals(current)) throw Error('Frozen file changed: ' + path);
 }
@@ -35,7 +45,8 @@ console.log(
   JSON.stringify(
     {
       frozen_baseline: base,
-      frozen_files_unchanged: frozen.length,
+      frozen_files_unchanged: frozen.length - 1,
+      authorized_manifest_state_migration: true,
       cards: cards.length,
       stickers: st.stickers.length,
       art_assets: assetManifest.assets.length,

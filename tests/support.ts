@@ -1,5 +1,7 @@
 import { Store } from '../server/db';
 import { Effects } from '../server/effects';
+import type { AIPort } from '../server/ai';
+import { ChannelPosts } from '../server/channel';
 import { Service } from '../server/service';
 import type { DiscordPort, Member } from '../server/discord';
 export class FakeDiscord implements DiscordPort {
@@ -7,6 +9,11 @@ export class FakeDiscord implements DiscordPort {
   roles = new Map<string, string>();
   calls: string[] = [];
   denied = '';
+  posts: any[] = [];
+  async send(payload: any) {
+    this.posts.push(payload);
+    return 'post-' + this.posts.length;
+  }
   async member(user: string) {
     if (!this.members.has(user))
       this.members.set(user, { nickname: '原昵称', display: 'Test', roles: [] });
@@ -38,7 +45,7 @@ export class FakeDiscord implements DiscordPort {
     this.members.get(user)!.roles = this.members.get(user)!.roles.filter((r) => r !== role);
   }
 }
-export function setup(path = ':memory:') {
+export function setup(path = ':memory:', ai?: AIPort) {
   let now = 1800000000000;
   const db = new Store(path),
     discord = new FakeDiscord(),
@@ -53,6 +60,8 @@ export function setup(path = ':memory:') {
       effects,
       () => 0.25,
       () => now,
+      new ChannelPosts(db, discord, 'https://test.invalid'),
+      ai,
     );
   return {
     db,

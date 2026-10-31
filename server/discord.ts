@@ -1,4 +1,9 @@
-import { Client, GatewayIntentBits, PermissionFlagsBits } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  PermissionFlagsBits,
+  type MessageCreateOptions,
+} from 'discord.js';
 export interface Member {
   nickname: string | null;
   display: string;
@@ -7,15 +12,13 @@ export interface Member {
 export interface DiscordPort {
   member(user: string): Promise<Member>;
   nickname(user: string, value: string | null): Promise<void>;
-  ensureRole(name: string, known?: string): Promise<string>;
-  addRole(user: string, role: string): Promise<void>;
-  removeRole(user: string, role: string): Promise<void>;
+  send(payload: MessageCreateOptions): Promise<string>;
 }
 export class DiscordBot implements DiscordPort {
   client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
   constructor(
     private guildId: string,
-    private saveRole: (name: string, id: string) => void,
+    private channelId: string,
   ) {}
   async start(token: string) {
     await this.client.login(token);
@@ -46,46 +49,10 @@ export class DiscordBot implements DiscordPort {
     if (!m.manageable) throw Error('ROLE_HIERARCHY_BLOCKED');
     await m.setNickname(value, 'Confessional temporary judgment / safe restore');
   }
-  async ensureRole(name: string, known?: string) {
-    const g = await this.guild();
-    const me = await g.members.fetchMe();
-    if (!me.permissions.has(PermissionFlagsBits.ManageRoles)) throw Error('MISSING_MANAGE_ROLES');
-    if (known) {
-      const r = await g.roles.fetch(known);
-      if (r) {
-        if (r.permissions.bitfield !== 0n || r.mentionable || r.managed)
-          throw Error('ROLE_NOT_COSMETIC');
-        if (r.position >= me.roles.highest.position) throw Error('ROLE_HIERARCHY_BLOCKED');
-        return r.id;
-      }
-    }
-    // Exact frozen role names; the database is the ownership metadata. Never adopt an existing same-name role.
-    const r = await g.roles.create({
-      name,
-      permissions: [],
-      mentionable: false,
-      hoist: false,
-      reason: 'Confessional managed cosmetic role',
-    });
-    this.saveRole(name, r.id);
-    return r.id;
-  }
-  async addRole(user: string, role: string) {
-    const g = await this.guild(),
-      m = await g.members.fetch({ user, force: true });
-    await this.ensureKnownCosmetic(g, role);
-    await m.roles.add(role, 'Confessional temporary judgment');
-  }
-  async removeRole(user: string, role: string) {
-    const g = await this.guild(),
-      m = await g.members.fetch({ user, force: true });
-    await m.roles.remove(role, 'Confessional effect expiry');
-  }
-  private async ensureKnownCosmetic(g: Awaited<ReturnType<DiscordBot['guild']>>, id: string) {
-    const r = await g.roles.fetch(id),
-      me = await g.members.fetchMe();
-    if (!r || r.permissions.bitfield !== 0n || r.mentionable || r.managed)
-      throw Error('ROLE_NOT_COSMETIC');
-    if (r.position >= me.roles.highest.position) throw Error('ROLE_HIERARCHY_BLOCKED');
+  async send(payload: MessageCreateOptions) {
+    const channel = await this.client.channels.fetch(this.channelId);
+    if (!channel?.isSendable()) throw Error('CHANNEL_NOT_SENDABLE');
+    const message = await channel.send({ ...payload, allowedMentions: { parse: [] } });
+    return message.id;
   }
 }

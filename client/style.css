@@ -1387,3 +1387,22 @@ footer span {
   place-items: center;
   transform: rotate(72deg) scaleY(0.35);
 }
+
+.identity-actions,
+.mode-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin: 20px 0;
+}
+.identity-actions button {
+  min-height: 48px;
+}
+.mode-choice p,
+.verdict-actions p {
+  flex-basis: 100%;
+}
+.booth header p {
+  overflow-wrap: anywhere;
+}

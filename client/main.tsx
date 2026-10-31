@@ -167,14 +167,14 @@ function Ritual({
       )}
       {type === 'round' && (
         <>
-          <p>50% 赢：本牌实体刑罚取消；50% 输：昵称 2h + 赌债身份组 3h。只进行一次。</p>
+          <p>50% 赢：本牌实体刑罚取消；50% 输：昵称 2h + 赌债内部状态 3h。只进行一次。</p>
           <button onClick={() => act('gamble')}>再赌一次 · 50/50</button>
-          <button onClick={() => act('coward')}>我怂了 · 身份组 2h</button>
+          <button onClick={() => act('coward')}>我怂了 · 内部状态 2h</button>
         </>
       )}
       {type === 'double' && (
         <>
-          <p>{remain}s · 50% 赢：实体刑罚归零；50% 输：双倍赌债和昵称 6h。超时维持身份组 4h。</p>
+          <p>{remain}s · 50% 赢：实体刑罚归零；50% 输：双倍赌债和昵称 6h。超时维持内部状态 4h。</p>
           <button disabled={!remain} onClick={() => act('double')}>
             翻倍 · 50/50
           </button>
@@ -194,12 +194,14 @@ function Ritual({
   );
 }
 function Ceremony({
+  readOnly = false,
   j,
   status,
   run,
   reduced,
   muted,
 }: {
+  readOnly?: boolean;
   j: PublicJudgment;
   status: string;
   run: (op: string, data: Record<string, unknown>) => Promise<void>;
@@ -241,7 +243,7 @@ function Ceremony({
       if (n >= sequence.length) {
         localStorage.setItem('ceremony-watched', '1');
         setWatched(true);
-        if (!sent.current) {
+        if (!readOnly && !sent.current) {
           sent.current = true;
           void run('animation_done', { judgment: j.id }).catch(() => {
             sent.current = false;
@@ -325,7 +327,7 @@ function Ceremony({
             {j.character === 'tatsumaki' ? '◉' : j.character === 'ren_yamashiro' ? '♛' : '♠'}
           </span>
           <p aria-live="polite">{labels[sequence[step]] || '钟声将起'}</p>
-          {watched && (
+          {watched && !readOnly && (
             <button onClick={() => void run('animation_done', { judgment: j.id })}>
               跳过已看过的演出
             </button>
@@ -340,7 +342,7 @@ function Ceremony({
               <button
                 key={n}
                 aria-label={`选择第 ${n + 1} 张塔罗牌`}
-                disabled={flipping}
+                disabled={flipping || readOnly}
                 style={{ '--index': n } as React.CSSProperties}
                 onClick={() => void choose(n)}
               >
@@ -354,7 +356,7 @@ function Ceremony({
       {!revealed && j.report && (
         <div className="execution-report">
           <p>{j.report.join(' ')}</p>
-          <button onClick={() => void run('close', {})}>离开忏悔席</button>
+          {!readOnly && <button onClick={() => void run('close', {})}>离开忏悔席</button>}
         </div>
       )}
       {revealed && (
@@ -370,8 +372,8 @@ function Ceremony({
               <summary>判决效果与时长</summary>
               <pre>{j.detail?.description}</pre>
             </details>
-            <Ritual j={j} run={run} />
-            {j.execution_status === 'pending' && (
+            {!readOnly && <Ritual j={j} run={run} />}
+            {!readOnly && j.execution_status === 'pending' && (
               <>
                 {canReroll && (
                   <button className="subtle" onClick={() => setPeek(!peek)}>
@@ -400,7 +402,7 @@ function Ceremony({
                 {j.report.map((line, n) => (
                   <p key={n}>{line}</p>
                 ))}
-                <button onClick={() => void run('close', {})}>离开忏悔席</button>
+                {!readOnly && <button onClick={() => void run('close', {})}>离开忏悔席</button>}
               </div>
             )}
           </div>
@@ -410,68 +412,99 @@ function Ceremony({
   );
 }
 function App() {
-  const [state, setState] = useState<Snapshot>(),
-    [error, setError] = useState(''),
+  const [state, setState] = useState<Snapshot>();
+  const [error, setError] = useState(''),
     [network, setNetwork] = useState('等待 Discord'),
-    [busy, setBusy] = useState(false),
-    [text, setText] = useState(''),
+    [busy, setBusy] = useState(false);
+  const [text, setText] = useState(''),
     [picker, setPicker] = useState(false),
-    [reduced, setReduced] = useState(
-      localStorage.getItem('reduced') === 'true' ||
-        matchMedia('(prefers-reduced-motion: reduce)').matches,
-    ),
-    [muted, setMuted] = useState(localStorage.getItem('muted') !== 'false');
-  const selected = useRef<string | undefined>(undefined),
-    connection = useRef<ReturnType<typeof connect> | null>(null),
-    scroll = useRef<HTMLDivElement>(null),
-    pending = useRef(false);
+    [now, setNow] = useState(Date.now());
+  const [reduced, setReduced] = useState(
+    localStorage.getItem('reduced') === 'true' ||
+      matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
+  const [muted, setMuted] = useState(localStorage.getItem('muted') !== 'false');
+  const connection = useRef<ReturnType<typeof connect> | null>(null),
+    pending = useRef(false),
+    selected = useRef<string | undefined>(undefined);
   useEffect(() => {
     let alive = true;
     boot()
       .then(() => {
-        if (!alive) return;
-        connection.current = connect((s) => {
-          if (alive) setState(s);
-        }, setNetwork);
+        if (alive)
+          connection.current = connect((s) => {
+            if (alive)
+              setState((previous) => {
+                if (previous?.session && !s.session) setError('对方已离开，忏悔已结束。');
+                return s;
+              });
+          }, setNetwork);
       })
-      .catch((e) => setError(e.message || '请在 Discord Activity 中打开忏悔室'));
+      .catch((e) => setError(e.message));
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       alive = false;
+      clearInterval(timer);
       connection.current?.close();
     };
   }, []);
-  useEffect(() => {
-    scroll.current?.scrollIntoView({ behavior: reduced ? 'instant' : 'smooth' });
-  }, [state?.messages.length, reduced]);
-  const run = async (op: string, data: Record<string, unknown>) => {
+  const run = async (op: string, data: Record<string, unknown> = {}) => {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
     setError('');
     try {
-      const payload = { id: state?.session?.id, ...data };
-      const result = await command(op, payload);
+      const result = await command(op, { id: state?.session?.id, ...data });
       if (op === 'claim') {
         selected.current = result.id;
         connection.current?.subscribe(result.id);
       }
-      if (op === 'close') {
+      if (op === 'close' || op === 'identity' || op === 'ai_start') {
         selected.current = undefined;
         connection.current?.subscribe();
       }
       setState(await snapshot(selected.current));
     } catch (e) {
-      setError(e instanceof Error ? e.message : '网络异常，请重试；判决已保留');
+      setError(e instanceof Error ? e.message : '网络异常，请重试');
+      try {
+        setState(await snapshot(selected.current));
+      } catch {}
     } finally {
       pending.current = false;
       setBusy(false);
     }
   };
+  const session = state?.session,
+    role = state?.role,
+    readOnly = role === 'spectator';
   const send = async (content: string, type = 'text') => {
-    await run('message', { content, type });
-    if (type === 'text') setText('');
+    setText('');
     setPicker(false);
+    await run('message', { content, type });
   };
+  const identity = (
+    <div className="identity-actions">
+      {state?.can_nun && (
+        <button disabled={busy} onClick={() => void run('identity', { role: 'nun' })}>
+          以修女身份进入
+        </button>
+      )}
+      <button disabled={busy} onClick={() => void run('identity', { role: 'confessor' })}>
+        以忏悔者身份进入 · 自动排队
+      </button>
+      <button disabled={busy} onClick={() => void run('identity', { role: 'spectator' })}>
+        只围观
+      </button>
+      {state?.ai_enabled && (
+        <button
+          disabled={busy}
+          onClick={() => void run('identity', { role: 'confessor', target: 'ai' })}
+        >
+          🐋 向大肥鱼忏悔 · 仅文字
+        </button>
+      )}
+    </div>
+  );
   return (
     <main aria-busy={busy} className={reduced ? 'reduce-motion' : ''}>
       <nav>
@@ -481,7 +514,6 @@ function App() {
         </a>
         <div className="settings">
           <button
-            title="减少动态效果"
             aria-pressed={reduced}
             onClick={() =>
               setReduced((v) => {
@@ -493,113 +525,149 @@ function App() {
             {reduced ? '动态：少' : '动态：完整'}
           </button>
           <button
-            aria-label="切换声音"
-            aria-pressed={!muted}
-            onClick={() => {
+            onClick={() =>
               setMuted((v) => {
                 localStorage.setItem('muted', String(!v));
                 return !v;
-              });
-              if (muted) bell();
-            }}
+              })
+            }
           >
             {muted ? '静音' : '声音'}
           </button>
         </div>
       </nav>
       <div className="connection" role="status">
-        <span className={network === '已连接' ? 'online' : ''} /> {network}
-        {state?.role === 'nun' ? ' · 修女席' : ''}
+        {network} ·{' '}
+        {role === 'nun'
+          ? '修女席'
+          : role === 'spectator'
+            ? '围观席'
+            : role === 'confessor'
+              ? '忏悔席'
+              : '选择身份'}
       </div>
       {error && (
         <div role="alert" className="error">
           {error}
-          {!state && <p>需要从指定服务器语音频道的 Activity 打开，并完成 Discord 应用配置。</p>}
         </div>
       )}
-      {!state?.session && state?.role !== 'nun' && (
+      {(!state || role === 'identity_select') && (
         <section className="entrance">
           <div className="arch">
-            <div className="rose-window">✝</div>
-            <img src="/assets/icon-512.png" alt="闭眼祈祷的黑白小修女" />
+            <img src="/assets/icon-512.png" alt="祈祷修女" />
           </div>
-          <small>LEAVE YOUR NAME AT THE DOOR</small>
           <h1>今夜，你想忏悔什么？</h1>
-          <p>
-            在这里，只有你的告解。
-            <br />
-            修女会倾听，也会宣判。
-          </p>
-          {state?.notices.map((n) => (
-            <p className="notice" key={n}>
-              {n}
-            </p>
-          ))}
-          <button
-            className="primary"
-            disabled={!state || busy}
-            onClick={() => void run('start', {})}
-          >
-            推开忏悔室的门 <span>→</span>
-          </button>
-          <p className="footnote">
-            临时匿名告解 · 判决可能临时改变服务器昵称或装饰身份组
-            <br />
-            所有游戏效果均会到期恢复
-          </p>
+          <p>匿名文字会公开给同一房间的围观者。</p>
+          {state && identity}
           <div className="nun-lineup">
             {Object.keys(names).map((key) => (
               <figure key={key}>
                 <img src={`/assets/nuns/${key}.webp`} alt={names[key]} />
-                <figcaption>
-                  {names[key]}
-                  <small>{arcana[key]}</small>
-                </figcaption>
+                <figcaption>{names[key]}</figcaption>
               </figure>
             ))}
           </div>
         </section>
       )}
-      {state?.role === 'nun' && !state.session && (
+      {state && role !== 'identity_select' && !session && (
         <section className="nun-queue">
-          <small>THE CONFESSION BOOTH</small>
-          <h1>修女席</h1>
-          <p>门后的人，只是一位迷途灵魂。</p>
-          {state.sessions.length ? (
-            state.sessions.map((s) => (
-              <button key={s.id} disabled={busy} onClick={() => void run('claim', { id: s.id })}>
-                <span>✧ {s.anonymous_id}</span>
-                <small>{s.status === 'QUEUED' ? '请她进来 →' : '继续接待 →'}</small>
-              </button>
-            ))
-          ) : (
-            <div className="empty">
-              烛火安静地燃烧着。
-              <br />
-              暂时没有等待的灵魂。
-            </div>
-          )}
+          <h1>{role === 'nun' ? '修女席' : role === 'spectator' ? '围观席' : '忏悔席'}</h1>
+          {role === 'nun' &&
+            (state.sessions.length ? (
+              state.sessions.map((s) => (
+                <button disabled={busy} key={s.id} onClick={() => void run('claim', { id: s.id })}>
+                  {s.anonymous_id} · 上钟接待
+                </button>
+              ))
+            ) : (
+              <p>暂时没有等待的灵魂。</p>
+            ))}
+          {role === 'spectator' && <p>暂无公开忏悔。语音现场请通过 Discord 原生语音频道收听。</p>}
+          {identity}
         </section>
       )}
-      {state?.session && (!state.judgment || state.role === 'nun') && (
+      {state?.role === 'spectator' && state.sessions.length > 1 && (
+        <div className="identity-actions">
+          {state.sessions.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => {
+                selected.current = s.id;
+                connection.current?.subscribe(s.id);
+              }}
+            >
+              {s.anonymous_id} · {s.status}
+            </button>
+          ))}
+        </div>
+      )}
+      {session && !state.judgment && (
         <section className="booth">
           <header>
-            <small>THE PRIVATE CONFESSIONAL</small>
-            <h1>{state.session.anonymous_id}</h1>
-            <p>
-              {state.session.status === 'QUEUED'
-                ? '修女正在准备，请稍候。'
-                : '隔着帘幕，有人在认真倾听。'}
-            </p>
+            <small>THE PUBLIC CONFESSIONAL · 同房间公开</small>
+            <h1>{session.anonymous_id}</h1>
+            <p>{session.status}</p>
+            {session.disconnected && <p role="status">对方连接中断，等待重连…（20 秒宽限）</p>}
+            {session.kind === 'ai' ? (
+              <p>🐋 大肥鱼 · 仅文字</p>
+            ) : (
+              <p>
+                {session.mode === 'brave'
+                  ? '勇者模式 · Discord 原生开麦、本音'
+                  : session.mode === 'text'
+                    ? '文字模式'
+                    : ''}{' '}
+                {session.reply_mode === 'voice' ? ' / 修女语音回复' : ''}
+              </p>
+            )}
+            {session.status === 'QUEUED' && <p>已进入忏悔队列，等待修女上钟。</p>}
           </header>
+          {session.status === 'MODE_SELECT' && (
+            <div className="mode-choice">
+              <p>
+                {Math.max(0, Math.ceil(((session.mode_deadline || now) - now) / 1000))}{' '}
+                秒内选择；超时自动文字模式。
+              </p>
+              {role === 'confessor' && (
+                <>
+                  <button disabled={busy} onClick={() => void run('mode', { mode: 'text' })}>
+                    文字模式
+                  </button>
+                  <button disabled={busy} onClick={() => void run('mode', { mode: 'brave' })}>
+                    勇者模式 · 本音
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {role === 'nun' &&
+            session.kind === 'human' &&
+            ['MODE_SELECT', 'CONFESSING'].includes(session.status) && (
+              <div>
+                <p>修女回复方式（独立选择）</p>
+                <button disabled={busy} onClick={() => void run('reply_mode', { mode: 'text' })}>
+                  文字
+                </button>
+                <button disabled={busy} onClick={() => void run('reply_mode', { mode: 'voice' })}>
+                  语音 · Discord 原生开麦
+                </button>
+              </div>
+            )}
+          {(session.mode === 'brave' || session.reply_mode === 'voice') && (
+            <p className="notice">
+              请在 Discord 语音频道使用原生麦克风控件；Activity 不处理或录制音频。
+            </p>
+          )}
           <div className="messages" aria-live="polite">
             {state.messages.map((m) => (
               <article key={m.id} className={'message ' + m.sender_type}>
                 <small>
                   {m.sender_type === 'confessor'
-                    ? state.session?.anonymous_id
+                    ? session.anonymous_id
                     : m.sender_type === 'nun'
-                      ? '修女'
+                      ? session.kind === 'ai'
+                        ? '大肥鱼'
+                        : '修女'
                       : '命运回声'}
                 </small>
                 {m.type === 'sticker' ? (
@@ -609,9 +677,8 @@ function App() {
                 )}
               </article>
             ))}
-            <div ref={scroll} />
           </div>
-          {state.session.status === 'CONFESSING' && (
+          {!readOnly && ['CONFESSING', 'TEXT_CONFESSING'].includes(session.status) && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -620,18 +687,18 @@ function App() {
             >
               <input
                 aria-label="匿名消息"
-                placeholder={state.role === 'nun' ? '回应这位灵魂……' : '说出你的告解……'}
                 maxLength={2000}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
+                placeholder="文字将向同房间围观者公开…"
               />
-              <button type="button" aria-label="打开修女贴纸" onClick={() => setPicker(!picker)}>
-                ☺
-              </button>
-              <button type="submit" disabled={!text.trim() || busy}>
-                发送
-              </button>
-              {picker && (
+              <button disabled={busy || !text.trim()}>发送</button>
+              {session.kind !== 'ai' && (
+                <button type="button" aria-label="打开修女贴纸" onClick={() => setPicker(!picker)}>
+                  ☺
+                </button>
+              )}
+              {picker && session.kind !== 'ai' && (
                 <div className="sticker-picker">
                   {Array.from(
                     { length: 16 },
@@ -639,62 +706,106 @@ function App() {
                   ).map((key) => (
                     <button
                       type="button"
-                      aria-label={`发送贴纸 ${key}`}
                       key={key}
+                      aria-label={`发送贴纸 ${key}`}
                       disabled={busy}
                       onClick={() => void send(key, 'sticker')}
                     >
-                      <img src={`/assets/stickers/nun/${key}.png`} alt="" />
+                      <img src={`/assets/stickers/nun/${key}.png`} alt={key} />
                     </button>
                   ))}
                 </div>
               )}
             </form>
           )}
-          {state.role === 'nun' && state.session.status === 'CONFESSING' && (
+          {role === 'confessor' && session.status === 'QUEUED' && state.ai_enabled && (
+            <button disabled={busy} onClick={() => void run('ai_start')}>
+              🐋 向大肥鱼忏悔 · 离开人工队列
+            </button>
+          )}
+          {role === 'confessor' &&
+            session.kind === 'ai' &&
+            session.status === 'TEXT_CONFESSING' && (
+              <div>
+                <button disabled={busy} onClick={() => void run('ai_retry')}>
+                  请大肥鱼回应 / 重试
+                </button>
+                <button
+                  disabled={busy || !state.messages.length}
+                  onClick={() => void run('ai_verdict')}
+                >
+                  请大肥鱼判决
+                </button>
+              </div>
+            )}
+          {role === 'nun' && session.status === 'CONFESSING' && (
+            <button className="primary" disabled={busy} onClick={() => void run('end_confession')}>
+              忏悔结束
+            </button>
+          )}
+          {session.status === 'COMMUNITY_VOTE' && (
             <div className="verdict-actions">
-              <button
-                disabled={busy}
-                className="heaven-button"
-                onClick={() => void run('verdict', { verdict: 'heaven' })}
-              >
-                ☁ 天堂
-              </button>
-              <button
-                disabled={busy}
-                className="hell-button"
-                onClick={() => void run('verdict', { verdict: 'hell' })}
-              >
-                🔥 地狱
-              </button>
+              <p>Discord 原生投票已发布。群众意见仅供参考，最终裁决权属于当值修女。</p>
+              {role === 'nun' && (
+                <>
+                  <button
+                    className="heaven-button"
+                    disabled={busy}
+                    onClick={() => void run('verdict', { verdict: 'heaven' })}
+                  >
+                    ☁ 天堂
+                  </button>
+                  <button
+                    className="hell-button"
+                    disabled={busy}
+                    onClick={() => void run('verdict', { verdict: 'hell' })}
+                  >
+                    🔥 地狱
+                  </button>
+                </>
+              )}
             </div>
           )}
-          {state.role === 'nun' && state.judgment && (
+          {session.poll_id && (
             <p className="notice">
-              判决已锁定：{names[state.judgment.character]} · {state.judgment.rarity} ·{' '}
-              {state.judgment.execution_status}。等待忏悔者亲手完成抽卡。
+              社区投票在 Discord 忏悔室频道内进行，仅供参考。
+              {session.poll_url && (
+                <a href={session.poll_url} target="_blank" rel="noreferrer">
+                  打开天堂 / 地狱原生投票 ↗
+                </a>
+              )}
             </p>
           )}
-          {['QUEUED', 'CONFESSING', 'SETTLED'].includes(state.session.status) && (
-            <button className="subtle" disabled={busy} onClick={() => void run('close', {})}>
-              结束当前会话
+          {!readOnly && session.status !== 'EXECUTING' && (
+            <button className="subtle" disabled={busy} onClick={() => void run('close')}>
+              {state.judgment ? '离开忏悔席' : '退出当前会话'}
             </button>
           )}
         </section>
       )}
-      {state?.judgment && state.role === 'confessor' && state.session && (
+      {state?.judgment && session && (
+        <p className="connection">
+          {session.anonymous_id} · {session.kind === 'ai' ? '大肥鱼' : '真人修女'} ·{' '}
+          {session.status}
+        </p>
+      )}
+      {state?.judgment && session && role === 'nun' && session.status === 'SETTLED' && (
+        <button disabled={busy} onClick={() => void run('close')}>
+          结束当前会话
+        </button>
+      )}
+      {state?.judgment && session && (
         <Ceremony
           key={state.judgment.id}
           j={state.judgment}
-          status={state.session.status}
+          status={session.status}
           run={run}
           reduced={reduced}
           muted={muted}
+          readOnly={role !== 'confessor'}
         />
       )}
-      <footer>
-        ⛪ Discord 忏悔室 <span>ANONYMOUS SOULS · REAL JUDGMENTS</span>
-      </footer>
+      <footer>⛪ Discord 忏悔室 · 匿名文字公开 · 昵称与内部状态判决</footer>
     </main>
   );
 }

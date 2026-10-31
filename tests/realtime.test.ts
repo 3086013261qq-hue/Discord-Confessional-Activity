@@ -10,8 +10,8 @@ test('production WebSocket: auth, isolation, text/sticker delivery, reconnect fr
   const { db, service } = setup(),
     server = createServer();
   let revoked = false;
-  const soul = { user: 'private-user', nun: false },
-    nun = { user: 'private-nun', nun: true };
+  const soul = { user: 'private-user', nun: false, identity: 'confessor' },
+    nun = { user: 'private-nun', nun: true, identity: 'nun' };
   const origins = new Set(['http://allowed']);
   const realtime = attachRealtime(server, {
     origins,
@@ -44,6 +44,7 @@ test('production WebSocket: auth, isolation, text/sticker delivery, reconnect fr
       admin = await client('nun');
     const { id } = await service.command(soul, randomUUID(), 'start', {});
     await service.command(nun, randomUUID(), 'claim', { id });
+    await service.command(soul, randomUUID(), 'mode', { id, mode: 'text' });
     const subscribed = once(admin, 'message');
     admin.send(JSON.stringify({ type: 'subscribe', session: id }));
     await subscribed;
@@ -59,6 +60,7 @@ test('production WebSocket: auth, isolation, text/sticker delivery, reconnect fr
       assert.ok(json.includes(content));
       assert.ok(!json.includes('private-user'));
     }
+    await service.command(nun, randomUUID(), 'end_confession', { id });
     await service.command(nun, randomUUID(), 'verdict', { id, verdict: 'hell' });
     const jid = service.snapshot(soul).judgment!.id;
     user.close();
@@ -90,6 +92,76 @@ test('production WebSocket: auth, isolation, text/sticker delivery, reconnect fr
     await realtime.publish();
     const [code] = await denied;
     assert.equal(code, 1008);
+  } finally {
+    for (const ws of clients) ws.terminate();
+    realtime.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    db.db.close();
+  }
+});
+
+test('Candidate2 real sockets: last connection close starts grace; reconnect cancels it; expiry broadcasts released nun', async () => {
+  const { db, service, time } = setup(),
+    server = createServer();
+  const soul = { user: 'presence-soul', nun: false },
+    nun = { user: 'presence-nun', nun: true };
+  const { id } = await service.command(soul, randomUUID(), 'identity', { role: 'confessor' });
+  await service.command(nun, randomUUID(), 'identity', { role: 'nun' });
+  await service.command(nun, randomUUID(), 'claim', { id });
+  const realtime = attachRealtime(server, {
+    origins: new Set(['http://allowed']),
+    authorize: async (token) => (token === 'nun' ? nun : soul),
+    snapshot: (actor, id) => service.snapshot(actor, id),
+    rate: () => {},
+    closed: (id) => !!db.get<any>('SELECT closed_at FROM sessions WHERE id=?', id)?.closed_at,
+    connected: (actor) => service.connected(actor),
+    disconnected: (actor) => service.disconnected(actor),
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const clients: WebSocket[] = [];
+  async function connect(token: string) {
+    const ws = new WebSocket(`ws://127.0.0.1:${(server.address() as any).port}/ws`, {
+      origin: 'http://allowed',
+    });
+    clients.push(ws);
+    await once(ws, 'open');
+    const ready = once(ws, 'message');
+    ws.send(JSON.stringify({ type: 'auth', token }));
+    await ready;
+    return ws;
+  }
+  // The peer close event can arrive a turn after the client close event.
+  async function closedByServer() {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  try {
+    const admin = await connect('nun'),
+      first = await connect('soul'),
+      second = await connect('soul');
+    first.close();
+    await once(first, 'close');
+    await closedByServer();
+    time.advance(21000);
+    await service.maintain();
+    assert.ok(service.snapshot(soul).session);
+    second.close();
+    await once(second, 'close');
+    await closedByServer();
+    assert.equal(service.snapshot(nun).session?.disconnected, true);
+    time.advance(19000);
+    const recovered = await connect('soul');
+    await service.maintain();
+    assert.equal(service.snapshot(soul).session?.id, id);
+    recovered.close();
+    await once(recovered, 'close');
+    await closedByServer();
+    time.advance(20000);
+    await service.maintain();
+    const update = once(admin, 'message');
+    await realtime.publish();
+    const [bytes] = await update;
+    assert.equal(JSON.parse(bytes.toString()).data.session, undefined);
   } finally {
     for (const ws of clients) ws.terminate();
     realtime.close();

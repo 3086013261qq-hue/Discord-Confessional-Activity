@@ -9,12 +9,14 @@ import { draw, cards, byId, details, manifest, validateManifest, artUrls } from 
 import { Effects, safeNickname } from '../server/effects';
 import { Service } from '../server/service';
 import { Store } from '../server/db';
-const soul = { user: 'soul-1', nun: false },
-  nun = { user: 'nun-1', nun: true };
+const soul = { user: 'soul-1', nun: false, identity: 'confessor' },
+  nun = { user: 'nun-1', nun: true, identity: 'nun' };
 const req = () => randomUUID();
 async function session(s: Service) {
   const { id } = await s.command(soul, req(), 'start', {});
   await s.command(nun, req(), 'claim', { id });
+  await s.command(soul, req(), 'mode', { id, mode: 'text' });
+
   return id;
 }
 function createJ(db: Store, card_id: string, id = randomUUID(), session_id = 'session') {
@@ -77,7 +79,10 @@ test('anonymous queue, text and sticker, nun payload redaction, close deletes ma
   assert.equal(service.snapshot(soul).messages.length, 2);
   await assert.rejects(
     () =>
-      service.command({ user: 'stranger', nun: false }, req(), 'message', { id, content: 'no' }),
+      service.command({ user: 'stranger', nun: false, identity: 'confessor' }, req(), 'message', {
+        id,
+        content: 'no',
+      }),
     /权限/,
   );
   await service.command(nun, req(), 'close', { id });
@@ -87,6 +92,7 @@ test('anonymous queue, text and sticker, nun payload redaction, close deletes ma
 test('verdict concurrent calls freeze one result; reconnect, double select and execute are idempotent', async () => {
   const { db, service, discord } = setup();
   const id = await session(service);
+  await service.command(nun, req(), 'end_confession', { id });
   const results = await Promise.all(
     Array.from({ length: 15 }, () =>
       service.command(nun, req(), 'verdict', { id, verdict: 'hell' }),
@@ -247,6 +253,7 @@ test('protection excludes SSR; lucky chip only cancels R; cleanse only eligible 
 test('one reroll token, persisted replacement and no consecutive reroll', async () => {
   const { db, service, effects } = setup();
   const id = await session(service);
+  await service.command(nun, req(), 'end_confession', { id });
   await service.command(nun, req(), 'verdict', { id, verdict: 'hell' });
   let j = service.snapshot(soul).judgment!;
   await service.command(soul, req(), 'animation_done', { judgment: j.id });
@@ -296,6 +303,7 @@ test('unauthorized nun actions, invalid stickers, early choose and execute block
     () => service.command(soul, req(), 'message', { id, type: 'sticker', content: '../../secret' }),
     /格式/,
   );
+  await service.command(nun, req(), 'end_confession', { id });
   await service.command(nun, req(), 'verdict', { id, verdict: 'heaven' });
   const j = service.snapshot(soul).judgment!;
   await assert.rejects(

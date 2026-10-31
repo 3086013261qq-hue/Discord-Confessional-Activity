@@ -116,11 +116,11 @@ export class Effects {
       interaction_one_more_round_50_50: () => {
         p.actions = [];
         if (i.choice === 'coward')
-          p.actions.push({ kind: 'role', value: '😼 李柚巴认证·怂了', hours: 2 });
+          p.actions.push({ kind: 'state', value: '😼 李柚巴认证·怂了', hours: 2 });
         else if (!i.win)
           p.actions.push(
             { kind: 'nickname', value: '刚输给李柚巴的', hours: 2 },
-            { kind: 'role', value: '🎲 赌债未清', hours: 3 },
+            { kind: 'state', value: '🎲 赌债未清', hours: 3 },
           );
         p.notes.push(
           i.choice === 'coward'
@@ -132,11 +132,12 @@ export class Effects {
       },
       interaction_double_or_nothing_server_rng: () => {
         p.actions = [];
-        if (i.choice !== 'double') p.actions.push({ kind: 'role', value: '🎲 赌债未清', hours: 4 });
+        if (i.choice !== 'double')
+          p.actions.push({ kind: 'state', value: '🎲 赌债未清', hours: 4 });
         else if (!i.win)
           p.actions.push(
             { kind: 'nickname', value: '输给李柚巴两次的', hours: 6 },
-            { kind: 'role', value: '🎲 双倍赌债', hours: 6 },
+            { kind: 'state', value: '🎲 双倍赌债', hours: 6 },
           );
         p.notes.push(
           i.choice !== 'double'
@@ -183,6 +184,12 @@ export class Effects {
   }
   async execute(user: string, j: any) {
     const card = byId.get(j.card_id)!;
+    if (j.plan) {
+      const legacy = JSON.parse(j.plan);
+      for (const a of legacy.actions) if (a.kind === 'role') a.kind = 'state';
+      this.db.run('UPDATE judgments SET plan=? WHERE id=?', JSON.stringify(legacy), j.id);
+      j.plan = JSON.stringify(legacy);
+    }
     if (j.report) return JSON.parse(j.report) as string[];
     let plan: Plan;
     if (j.plan) plan = JSON.parse(j.plan);
@@ -237,7 +244,7 @@ export class Effects {
             ['lucky_chip', 'free_reroll', 'hell_reroll_token'].includes(k),
           );
           if (available.length) this.consume(user, this.pick(available));
-          else plan.actions.push({ kind: 'role', value: '🪙 今日手气欠佳', hours: 3 });
+          else plan.actions.push({ kind: 'state', value: '🪙 今日手气欠佳', hours: 3 });
         }
         if (plan.cleanse) {
           const f = plan.cleanse;
@@ -250,7 +257,7 @@ export class Effects {
                 rank[c.rarity] <= f.max &&
                 (!f.character || c.character === f.character) &&
                 (!f.kind || e.kind === f.kind) &&
-                (!f.roleLimit || e.kind !== 'role' || roleCount++ < f.roleLimit)
+                (!f.roleLimit || e.kind !== 'state' || roleCount++ < f.roleLimit)
               );
             })
             .slice(0, f.limit ?? Infinity)
@@ -262,7 +269,7 @@ export class Effects {
             const c = byId.get(e.card_id)!;
             return c.alignment === 'reversed' && rank[c.rarity] <= 2;
           });
-          const e = all.find((e) => e.kind === 'nickname') || all.find((e) => e.kind === 'role');
+          const e = all.find((e) => e.kind === 'nickname') || all.find((e) => e.kind === 'state');
           plan.cleanseIds = e ? [e.id] : [];
         }
         if (card.alignment === 'upright' && card.rarity !== 'R')
@@ -281,13 +288,13 @@ export class Effects {
         if (plan.special === 'dealer_cut') {
           const positive = active.filter((e) => byId.get(e.card_id)!.alignment === 'upright');
           const target =
-            positive.find((e) => e.kind === 'role' && byId.get(e.card_id)!.rarity === 'R') ||
+            positive.find((e) => e.kind === 'state' && byId.get(e.card_id)!.rarity === 'R') ||
             positive.find(
               (e) => rank[byId.get(e.card_id)!.rarity] <= 2 && e.expires_at - this.now() > 1800000,
             );
           if (target) {
             plan.specialTarget = target.id;
-            if (!(target.kind === 'role' && byId.get(target.card_id)!.rarity === 'R'))
+            if (!(target.kind === 'state' && byId.get(target.card_id)!.rarity === 'R'))
               plan.specialNewExpiry =
                 this.now() + Math.max(1800000, (target.expires_at - this.now()) / 2);
           }
@@ -328,7 +335,9 @@ export class Effects {
               plan.specialTarget,
             );
           if (plan.special === 'double_reward') {
-            const eligible = plan.actions.filter((a) => a.kind === 'nickname' || a.kind === 'role');
+            const eligible = plan.actions.filter(
+              (a) => a.kind === 'nickname' || a.kind === 'state',
+            );
             if (!eligible.length) this.grant(user, 'free_reroll', 24, j.id);
             else {
               for (const a of eligible)
@@ -366,7 +375,7 @@ export class Effects {
       j.id,
     );
     this.db.run("UPDATE sessions SET status='SETTLED' WHERE id=?", j.session_id);
-    return notes;
+    return notes.length ? notes : ['Activity 状态已结算'];
   }
   error(e: unknown) {
     return e instanceof Error ? e.message.slice(0, 100) : 'UNKNOWN_ERROR';
@@ -391,9 +400,8 @@ export class Effects {
       e &&
       ['active', 'restored', 'superseded', 'manual_changed', 'preexisting'].includes(e.status)
     )
-      return '已结算：' + a.value;
+      return `已结算：${e.applied_value} · ${a.hours}h`;
     if (!e) {
-      const m = await this.discord.member(user);
       let original: any = null,
         applied: any = a.value;
       if (a.kind === 'nickname') {
@@ -408,21 +416,8 @@ export class Effects {
         const fresh = await this.discord.member(user);
         original = fresh.nickname;
         applied = safeNickname(a.value, fresh.nickname ?? fresh.display);
-      } else {
-        const known = this.db.get<any>('SELECT role_id FROM managed_roles WHERE name=?', a.value);
-        applied = await this.discord.ensureRole(a.value, known?.role_id);
-        this.db.run(
-          'INSERT INTO managed_roles VALUES(?,?) ON CONFLICT(name) DO UPDATE SET role_id=excluded.role_id',
-          a.value,
-          applied,
-        );
-        const other = this.active(user).some(
-          (v) => v.kind === 'role' && v.applied_value === applied,
-        );
-        if (m.roles.includes(applied) && !other) {
-          return '原有身份组保持不变：' + a.value;
-        }
       }
+
       e = {
         id: randomUUID(),
         user_id: user,
@@ -456,8 +451,8 @@ export class Effects {
       return '效果已到期，服务器效果未执行：' + a.value;
     }
     try {
-      const m = await this.discord.member(user);
       if (e.kind === 'nickname') {
+        const m = await this.discord.member(user);
         if (m.nickname !== e.applied_value) {
           if (m.nickname !== JSON.parse(e.original_value)) {
             this.db.run("UPDATE active_effects SET status='manual_changed' WHERE id=?", e.id);
@@ -465,36 +460,28 @@ export class Effects {
           }
           await this.discord.nickname(user, e.applied_value);
         }
-      } else if (!m.roles.includes(e.applied_value))
-        await this.discord.addRole(user, e.applied_value);
+      }
       this.db.run("UPDATE active_effects SET status='active',last_error=NULL WHERE id=?", e.id);
-      return `服务器${a.kind === 'nickname' ? '昵称' : '身份组'}已执行：${a.value} · ${a.hours}h`;
+      return `${a.kind === 'nickname' ? '服务器昵称' : '内部状态'}已执行：${e.applied_value} · ${a.hours}h`;
     } catch (err) {
       this.db.run('UPDATE active_effects SET last_error=? WHERE id=?', this.error(err), e.id);
       throw err;
     }
   }
   async restore(e: any) {
-    if (['restored', 'manual_changed', 'superseded'].includes(e.status)) return;
+    if (e.kind === 'role') {
+      this.db.run("UPDATE active_effects SET status='legacy_retired' WHERE id=?", e.id);
+      return;
+    }
+    if (['restored', 'manual_changed', 'superseded', 'legacy_retired'].includes(e.status)) return;
     this.db.run("UPDATE active_effects SET status='restoring' WHERE id=?", e.id);
     try {
-      const m = await this.discord.member(e.user_id);
       let status = 'restored';
       if (e.kind === 'nickname') {
+        const m = await this.discord.member(e.user_id);
         if (m.nickname === e.applied_value)
           await this.discord.nickname(e.user_id, JSON.parse(e.original_value));
         else status = 'manual_changed';
-      } else {
-        const other = this.active(e.user_id).some(
-          (v) =>
-            v.id !== e.id &&
-            v.kind === 'role' &&
-            v.applied_value === e.applied_value &&
-            v.expires_at > this.now() &&
-            v.status !== 'restoring',
-        );
-        if (!other && m.roles.includes(e.applied_value))
-          await this.discord.removeRole(e.user_id, e.applied_value);
       }
       this.db.run('UPDATE active_effects SET status=?,last_error=NULL WHERE id=?', status, e.id);
     } catch (err) {

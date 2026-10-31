@@ -3,6 +3,8 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
+import { DeepSeek } from './ai.js';
+import { ChannelPosts } from './channel.js';
 import { attachRealtime } from './realtime.js';
 import { Store } from './db.js';
 import { DiscordBot } from './discord.js';
@@ -23,16 +25,21 @@ const required = [
 for (const key of required) if (!env[key]) throw Error('Missing required configuration: ' + key);
 if (env.SESSION_SECRET!.length < 32) throw Error('SESSION_SECRET must have at least 32 characters');
 const db = new Store(env.DATABASE_URL?.replace(/^sqlite:/, '') || 'data/confessional.sqlite');
-const bot = new DiscordBot(env.DISCORD_GUILD_ID!, (name, id) =>
-  db.run(
-    'INSERT INTO managed_roles VALUES(?,?) ON CONFLICT(name) DO UPDATE SET role_id=excluded.role_id',
-    name,
-    id,
-  ),
-);
+const bot = new DiscordBot(env.DISCORD_GUILD_ID!, env.CONFESSIONAL_CHANNEL_ID!);
 await bot.start(env.DISCORD_BOT_TOKEN!);
 const effects = new Effects(db, bot),
-  service = new Service(db, effects);
+  service = new Service(
+    db,
+    effects,
+    undefined,
+    undefined,
+    new ChannelPosts(db, bot, env.PUBLIC_ORIGIN!, {
+      guild: env.DISCORD_GUILD_ID!,
+      channel: env.CONFESSIONAL_CHANNEL_ID!,
+    }),
+    new DeepSeek(),
+  );
+service.recoverPresence();
 const app = express(),
   server = createServer(app);
 app.disable('x-powered-by');
@@ -88,7 +95,14 @@ async function auth(token?: string): Promise<Actor> {
   );
   requireThat(row, '登录已到期，请重新打开 Activity', 401);
   const nun = await isNun(row.user_id);
-  return { user: row.user_id, nun };
+  return {
+    user: row.user_id,
+    nun,
+    scope: digest(token),
+    instance:
+      db.get<any>('SELECT value FROM metadata WHERE key=?', 'instance:' + digest(token))?.value ||
+      'default',
+  };
 }
 app.get('/api/config', (_req, res) =>
   res.json({
@@ -98,7 +112,7 @@ app.get('/api/config', (_req, res) =>
   }),
 );
 app.get('/api/health', (_req, res) =>
-  res.json({ ok: bot.client.isReady(), version: '0.1.0-candidate1' }),
+  res.json({ ok: bot.client.isReady(), version: '0.2.0-candidate2' }),
 );
 app.post('/api/auth', async (req, res) => {
   rate('auth:' + req.ip, 30);
@@ -139,6 +153,11 @@ app.post('/api/auth', async (req, res) => {
     '请先加入忏悔室语音频道',
     403,
   );
+  requireThat(
+    typeof req.body.instance_id === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(req.body.instance_id),
+    'Activity instance 无效',
+    400,
+  );
   const nun = await isNun(user.id),
     token = randomBytes(32).toString('base64url');
   db.run(
@@ -148,6 +167,7 @@ app.post('/api/auth', async (req, res) => {
     Number(nun),
     Date.now() + 2 * 3600000,
   );
+  db.run('INSERT INTO metadata VALUES(?,?)', 'instance:' + digest(token), req.body.instance_id);
   res.json({ access_token: data.access_token, token, role: nun ? 'nun' : 'confessor' });
 });
 app.get('/api/snapshot', async (req, res) => {
@@ -159,6 +179,8 @@ app.get('/api/snapshot', async (req, res) => {
 });
 const realtime = attachRealtime(server, {
   origins,
+  connected: (actor) => service.connected(actor),
+  disconnected: (actor) => service.disconnected(actor),
   authorize: auth,
   snapshot: (actor, id) => service.snapshot(actor, id),
   rate,
@@ -177,9 +199,12 @@ app.post('/api/command', async (req, res) => {
     '请求格式无效',
     400,
   );
-  const result = await service.command(actor, request_id, operation, data);
-  res.json(result);
-  await publish();
+  try {
+    const result = await service.command(actor, request_id, operation, data);
+    res.json(result);
+  } finally {
+    await publish();
+  }
 });
 // Same-origin cloud relay follows frozen raw_base. No client-supplied host or directory scanning.
 const assets = new Map<string, { body: Buffer; type: string }>();
@@ -230,6 +255,7 @@ const timer = setInterval(async () => {
   ticking = true;
   try {
     await effects.tick();
+    await service.maintain();
     const stale = db.all(
       "SELECT id,session_id FROM judgments WHERE execution_status='pending' AND created_at<?",
       Date.now() - 600000,
@@ -269,11 +295,25 @@ const timer = setInterval(async () => {
     ticking = false;
   }
 }, 15000);
+let lifecycleBusy = false;
+const lifecycle = setInterval(async () => {
+  if (lifecycleBusy) return;
+  lifecycleBusy = true;
+  try {
+    await service.maintain();
+    await publish();
+  } catch {
+    /* durable state retained */
+  } finally {
+    lifecycleBusy = false;
+  }
+}, 1000);
 await effects.tick();
 server.listen(Number(env.PORT || 3001), '0.0.0.0', () => console.log('Confessional backend ready'));
 for (const signal of ['SIGTERM', 'SIGINT'])
   process.on(signal, () => {
     clearInterval(timer);
+    clearInterval(lifecycle);
     realtime.close();
     server.close(() => {
       bot.client.destroy();

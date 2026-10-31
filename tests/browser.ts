@@ -6,7 +6,11 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { setup } from './support';
 import { cards, manifest } from '../server/cards';
-const { db, service, discord } = setup();
+const { db, service, discord } = setup(':memory:', {
+  enabled: true,
+  reply: async () => '先说说发生了什么，我听着。',
+  verdict: async () => ({ verdict: 'heaven', reason: '愿你今晚好好休息。' }),
+});
 const vite = await createViteServer({
   configFile: 'vite.config.ts',
   server: { host: '127.0.0.1', port: 4173, strictPort: true },
@@ -32,7 +36,7 @@ const vite = await createViteServer({
             if (url.pathname === '/client/api.ts') {
               res.setHeader('Content-Type', 'application/javascript');
               res.end(`
-let role=new URLSearchParams(location.search).get('role')==='nun'?'nun':'confessor';
+let role=new URLSearchParams(location.search).get('role')||'confessor';
 const headers={'Content-Type':'application/json','x-test-role':role};let current;
 export async function boot(){return {role};}
 export async function snapshot(session){const r=await fetch('/__test/snapshot'+(session?'?session='+session:''),{headers});return r.json();}
@@ -43,7 +47,12 @@ export function connect(cb,status){let alive=true;const poll=async()=>{if(!alive
             }
             if (url.pathname.startsWith('/__test/')) {
               const actor = {
-                user: req.headers['x-test-role'] === 'nun' ? 'nun' : 'soul',
+                user:
+                  req.headers['x-test-role'] === 'nun'
+                    ? 'nun'
+                    : req.headers['x-test-role'] === 'spectator'
+                      ? 'watcher'
+                      : 'soul',
                 nun: req.headers['x-test-role'] === 'nun',
               };
               res.setHeader('Content-Type', 'application/json');
@@ -114,16 +123,29 @@ try {
   await page.goto('http://127.0.0.1:4173');
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: 'qa/screenshots/mobile-entrance.png', fullPage: true });
-  await page.getByRole('button', { name: /推开/ }).click();
+  await page.getByRole('button', { name: /以忏悔者身份进入/ }).click();
   await nun.goto('http://127.0.0.1:4173/?role=nun');
-  await nun.getByRole('button', { name: /迷途灵魂/ }).click();
+  await nun.getByRole('button', { name: '以修女身份进入', exact: true }).click();
+  await nun.getByRole('button', { name: /上钟接待/ }).click();
+  await page.getByRole('button', { name: '文字模式', exact: true }).click();
   await page.getByLabel('匿名消息').fill('我今天又熬夜了');
   await page.getByRole('button', { name: '发送', exact: true }).click();
   await nun.getByText('我今天又熬夜了', { exact: true }).waitFor();
   await nun.getByLabel('打开修女贴纸').click();
   await nun.getByLabel('发送贴纸 nun_16', { exact: true }).click();
   await page.getByAltText('修女表情贴纸').waitFor();
-  results.push('360x800 anonymous two-client chat and sticker PASS');
+  const spectator = await browser.newPage({
+    viewport: { width: 360, height: 800 },
+    reducedMotion: 'reduce',
+  });
+  await spectator.goto('http://127.0.0.1:4173/?role=spectator');
+  await spectator.getByRole('button', { name: '只围观', exact: true }).click();
+  await spectator.getByText('我今天又熬夜了', { exact: true }).waitFor();
+  assert.equal(await spectator.getByLabel('匿名消息').count(), 0);
+  assert.equal(await spectator.getByRole('button', { name: '忏悔结束', exact: true }).count(), 0);
+  results.push('360x800 anonymous three-client chat, sticker and read-only spectator PASS');
+  assert.equal(await nun.getByRole('button', { name: '🔥 地狱', exact: true }).count(), 0);
+  await nun.getByRole('button', { name: '忏悔结束', exact: true }).click();
   await nun.getByRole('button', { name: '🔥 地狱', exact: true }).click();
   await page.getByLabel('选择第 3 张塔罗牌').waitFor();
   for (let n = 1; n <= 5; n++) {
@@ -131,6 +153,8 @@ try {
     assert.ok(box && box.width >= 44 && box.height >= 44);
   }
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await spectator.getByLabel('选择第 3 张塔罗牌').waitFor();
+  assert.equal(await spectator.getByLabel('选择第 3 张塔罗牌').isDisabled(), true);
   await page.getByLabel('选择第 3 张塔罗牌').click();
   await page.getByRole('button', { name: '接受判决并执行', exact: true }).click();
   await page.getByText('判决已结算', { exact: true }).waitFor();
@@ -148,6 +172,8 @@ try {
     });
     const { id } = await service.command({ user: 'soul', nun: false }, randomUUID(), 'start', {});
     await service.command({ user: 'nun', nun: true }, randomUUID(), 'claim', { id });
+    await service.command({ user: 'soul', nun: false }, randomUUID(), 'mode', { id, mode: 'text' });
+    await service.command({ user: 'nun', nun: true }, randomUUID(), 'end_confession', { id });
     await service.command({ user: 'nun', nun: true }, randomUUID(), 'verdict', {
       id,
       verdict: c.id.startsWith('H') ? 'heaven' : 'hell',
@@ -175,7 +201,36 @@ try {
     );
     results.push(c.animation_key + ' render and settlement PASS');
   }
+  // Native voice UI changes only server mode; no browser microphone permission is requested.
+  let active = service.snapshot({ user: 'soul', nun: false }).session!;
+  await service.command({ user: 'soul', nun: false }, randomUUID(), 'close', { id: active.id });
+  await page.reload();
+  await page.getByRole('button', { name: /以忏悔者身份进入/ }).click();
+  await nun.reload();
+  await nun.getByRole('button', { name: /上钟接待/ }).click();
+  await page.getByRole('button', { name: '勇者模式 · 本音', exact: true }).click();
+  await nun.getByRole('button', { name: '语音 · Discord 原生开麦', exact: true }).click();
+  await page.getByText(/勇者模式 · Discord 原生开麦、本音/).waitFor();
+  assert.equal(service.snapshot({ user: 'soul', nun: false }).session?.reply_mode, 'voice');
+  results.push('brave native voice UI + independent nun voice reply, no getUserMedia PASS');
+  active = service.snapshot({ user: 'soul', nun: false }).session!;
+  await service.command({ user: 'soul', nun: false }, randomUUID(), 'close', { id: active.id });
+  await nun.reload();
+  await nun.getByRole('button', { name: '🐋 向大肥鱼忏悔 · 仅文字', exact: true }).click();
+  await nun.getByLabel('匿名消息').fill('我今天心情不好');
+  await nun.getByRole('button', { name: '发送', exact: true }).click();
+  await nun.getByText('先说说发生了什么，我听着。', { exact: true }).waitFor();
+  assert.equal(await nun.getByRole('button', { name: /原生开麦/ }).count(), 0);
+  assert.equal(await nun.getByRole('button', { name: '勇者模式 · 本音', exact: true }).count(), 0);
+  await nun.getByRole('button', { name: '请大肥鱼判决', exact: true }).click();
+  await nun.getByLabel('选择第 1 张塔罗牌').click();
+  await nun.getByRole('button', { name: '接受判决并执行', exact: true }).click();
+  await nun.getByText('判决已结算', { exact: true }).waitFor();
+  results.push(
+    'eligible nun -> AI confessor, text only, five-choice and settlement (fake provider) PASS',
+  );
   assert.deepEqual(errors, []);
+  await spectator.close();
   await mobile.close();
   await nun.close();
   writeFileSync(

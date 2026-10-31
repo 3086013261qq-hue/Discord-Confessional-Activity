@@ -16,7 +16,12 @@ export async function boot() {
   const r = await fetch('/api/auth', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, guild_id: sdk.guildId, channel_id: sdk.channelId }),
+    body: JSON.stringify({
+      code,
+      guild_id: sdk.guildId,
+      channel_id: sdk.channelId,
+      instance_id: sdk.instanceId,
+    }),
   });
   const auth = await r.json();
   if (!r.ok) throw Error(auth.error);

@@ -8,8 +8,11 @@ interface Dependencies {
   snapshot: (actor: Actor, session?: string) => Snapshot;
   rate: (key: string, max: number) => void;
   closed: (id: string) => boolean;
+  connected?: (actor: Actor) => void;
+  disconnected?: (actor: Actor) => void;
 }
 export function attachRealtime(server: Server, deps: Dependencies) {
+  let stopping = false;
   const wss = new WebSocketServer({ noServer: true, maxPayload: 12 * 1024 });
   const sockets = new Map<
     WebSocket,
@@ -42,8 +45,10 @@ export function attachRealtime(server: Server, deps: Dependencies) {
           if (authenticating || sockets.has(ws)) throw Error('Already authenticated');
           authenticating = true;
           const actor = await deps.authorize(m.token);
+          if (ws.readyState !== WebSocket.OPEN) return;
           clearTimeout(deadline);
           sockets.set(ws, { actor, token: m.token, alive: true });
+          deps.connected?.(actor);
           ws.send(JSON.stringify({ type: 'snapshot', data: deps.snapshot(actor) }));
         } else if (m.type === 'subscribe') {
           const ctx = sockets.get(ws);
@@ -63,18 +68,30 @@ export function attachRealtime(server: Server, deps: Dependencies) {
     ws.on('error', () => {});
     ws.on('close', () => {
       clearTimeout(deadline);
+      const ctx = sockets.get(ws);
       sockets.delete(ws);
+      if (ctx) {
+        deps.disconnected?.(ctx.actor);
+        void publish();
+      }
     });
   });
   async function publish() {
+    if (stopping) return;
     for (const [ws, ctx] of sockets) {
       try {
         if (ws.readyState === WebSocket.OPEN) {
           ctx.actor = await deps.authorize(ctx.token);
+          if (stopping) return;
           if (ctx.session && deps.closed(ctx.session)) ctx.session = undefined;
-          ws.send(
-            JSON.stringify({ type: 'snapshot', data: deps.snapshot(ctx.actor, ctx.session) }),
-          );
+          let data;
+          try {
+            data = deps.snapshot(ctx.actor, ctx.session);
+          } catch {
+            ctx.session = undefined;
+            data = deps.snapshot(ctx.actor);
+          }
+          ws.send(JSON.stringify({ type: 'snapshot', data }));
         }
       } catch {
         ws.close(1008, 'Session expired or access revoked');
@@ -95,8 +112,10 @@ export function attachRealtime(server: Server, deps: Dependencies) {
   return {
     publish,
     close() {
+      stopping = true;
       clearInterval(heartbeat);
       for (const ws of sockets.keys()) ws.close(1001, 'Restart');
+      sockets.clear();
       wss.close();
     },
   };

@@ -98,7 +98,7 @@
   },
   "execution_types": {
     "nickname": "temporary_nickname_with_safe_restore",
-    "role": "temporary_bot_managed_cosmetic_role",
+    "state": "temporary_activity_state",
     "state": "activity_session_or_account_state",
     "interaction": "activity_required_interaction",
     "cleanse": "remove_bot_owned_effects_only",

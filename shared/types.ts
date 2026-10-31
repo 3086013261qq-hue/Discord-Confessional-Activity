@@ -10,7 +10,7 @@ export interface Card {
   animation_key?: string;
 }
 export interface Action {
-  kind: 'nickname' | 'role' | 'token';
+  kind: 'nickname' | 'state' | 'token';
   value: string;
   hours: number;
 }
@@ -39,9 +39,22 @@ export interface PublicJudgment {
   rerolled: number;
 }
 export interface Snapshot {
-  role: 'nun' | 'confessor';
+  role: 'nun' | 'confessor' | 'spectator' | 'identity_select';
+  can_nun?: boolean;
+  ai_enabled?: boolean;
   sessions: { id: string; anonymous_id: string; status: string }[];
-  session?: { id: string; anonymous_id: string; status: string };
+  session?: {
+    id: string;
+    anonymous_id: string;
+    status: string;
+    kind?: string;
+    mode?: string;
+    reply_mode?: string;
+    mode_deadline?: number;
+    poll_id?: string;
+    poll_url?: string;
+    disconnected?: boolean;
+  };
   messages: {
     id: string;
     sender_type: string;

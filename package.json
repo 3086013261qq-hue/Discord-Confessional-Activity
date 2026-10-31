@@ -1,7 +1,7 @@
 {
   "name": "discord-confessional-activity",
   "private": true,
-  "version": "0.1.0-candidate1",
+  "version": "0.2.0-candidate2",
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
@@ -13,7 +13,9 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "check": "npm run build && npm test && npm run test:assets",
     "start": "node --import tsx server/index.ts",
+    "test:candidate2": "node --import tsx --test tests/candidate2.test.ts",
     "test:browser": "node --import tsx tests/browser.ts",
+    "recover:channel": "node --import tsx scripts/recover-channel.ts",
     "recover": "node --import tsx scripts/recover-effect.ts",
     "format:check": "prettier --check client server shared/types.ts tests vite.config.ts",
     "test:assets": "node --import tsx scripts/verify-source-assets.ts"

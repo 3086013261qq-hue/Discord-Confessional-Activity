@@ -1,7 +1,7 @@
-name: Candidate1 QA
+name: Candidate2 QA
 on:
   push:
-    branches: [main]
+    branches: [main, candidate2-real-device-refactor]
   pull_request:
 permissions:
   contents: read
