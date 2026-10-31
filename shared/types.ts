@@ -10,7 +10,7 @@ export interface Card {
   animation_key?: string;
 }
 export interface Action {
-  kind: 'nickname' | 'state' | 'token';
+  kind: 'nickname' | 'token';
   value: string;
   hours: number;
 }

@@ -14,14 +14,20 @@ for (const path of frozen) {
     maxBuffer: 32 * 1024 * 1024,
   });
   if (path === 'public/config/judgement-manifest.v1.json') {
-    // 011 explicitly replaces role semantics; every other manifest byte remains frozen.
-    original = Buffer.from(
-      original
-        .toString('utf8')
-        .replaceAll('"role"', '"state"')
-        .replaceAll('身份组', '内部状态')
-        .replace('temporary_bot_managed_cosmetic_role', 'temporary_activity_state'),
-    );
+    // 013 permits only nickname entities and hidden opportunities; assets and pools remain frozen.
+    const expected = JSON.parse(original.toString('utf8'));
+    const actual = JSON.parse(readFileSync(path, 'utf8'));
+    expected.execution_types = { ...expected.execution_types };
+    delete expected.execution_types.role;
+    delete expected.execution_types.state;
+    expected.execution_types.token = 'hidden_one_use_opportunity';
+    expected.content_version = '0.2.1-nickname-only';
+    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+      // Key order is immaterial; compare the complete structures.
+      const { isDeepStrictEqual } = await import('node:util');
+      if (!isDeepStrictEqual(expected, actual)) throw Error('Frozen manifest structure changed');
+    }
+    original = readFileSync(path);
   }
   const current = readFileSync(path);
   if (!original.equals(current)) throw Error('Frozen file changed: ' + path);
@@ -46,7 +52,7 @@ console.log(
     {
       frozen_baseline: base,
       frozen_files_unchanged: frozen.length - 1,
-      authorized_manifest_state_migration: true,
+      authorized_manifest_nickname_migration: true,
       cards: cards.length,
       stickers: st.stickers.length,
       art_assets: assetManifest.assets.length,

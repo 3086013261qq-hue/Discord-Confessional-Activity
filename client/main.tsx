@@ -167,14 +167,14 @@ function Ritual({
       )}
       {type === 'round' && (
         <>
-          <p>50% 赢：本牌实体刑罚取消；50% 输：昵称 2h + 赌债内部状态 3h。只进行一次。</p>
+          <p>50% 赢：本牌实体刑罚取消；50% 输：昵称 3h。只进行一次。</p>
           <button onClick={() => act('gamble')}>再赌一次 · 50/50</button>
-          <button onClick={() => act('coward')}>我怂了 · 内部状态 2h</button>
+          <button onClick={() => act('coward')}>我怂了 · 昵称 2h</button>
         </>
       )}
       {type === 'double' && (
         <>
-          <p>{remain}s · 50% 赢：实体刑罚归零；50% 输：双倍赌债和昵称 6h。超时维持内部状态 4h。</p>
+          <p>{remain}s · 50% 赢：实体刑罚归零；50% 输：双倍赌债和昵称 6h。超时维持赌债昵称 4h。</p>
           <button disabled={!remain} onClick={() => act('double')}>
             翻倍 · 50/50
           </button>
@@ -382,7 +382,7 @@ function Ceremony({
                 )}
                 {peek && (
                   <button onClick={() => void run('reroll', { judgment: j.id })}>
-                    使用已有重抽状态 · 新牌必须接受
+                    使用已有重抽机会 · 新牌必须接受
                   </button>
                 )}
                 <button className="primary" onClick={() => void run('execute', { judgment: j.id })}>
@@ -805,7 +805,7 @@ function App() {
           readOnly={role !== 'confessor'}
         />
       )}
-      <footer>⛪ Discord 忏悔室 · 匿名文字公开 · 昵称与内部状态判决</footer>
+      <footer>⛪ Discord 忏悔室 · 匿名文字公开 · 昵称判决</footer>
     </main>
   );
 }

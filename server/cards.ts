@@ -1,3 +1,4 @@
+import { renderNickname } from './nickname.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { randomInt } from 'node:crypto';
 import type { Card, Detail, Verdict } from '../shared/types.js';
@@ -61,7 +62,8 @@ export function artUrls(c: Card) {
     ),
   );
   const fallback = safePool.length
-    ? ch.asset_dir + safePool[hash(c.id + version) % safePool.length]
+    ? ch.asset_dir +
+      safePool[hash(c.id + (manifest.art_version || manifest.schema_version)) % safePool.length]
     : null;
   return [...specific, ...(fallback ? ['/cloud/' + fallback.replace(/^public\//, '')] : [])].map(
     (p) => p + '?v=' + version,
@@ -71,6 +73,10 @@ export function validateManifest() {
   if (cards.length !== 60 || new Set(cards.map((c) => c.id)).size !== 60) throw Error('CARD_COUNT');
   for (const c of cards) {
     if (!details[c.id]) throw Error('MISSING_DETAIL ' + c.id);
+    for (const a of details[c.id].actions) {
+      if (!['nickname', 'token'].includes(a.kind)) throw Error('UNSUPPORTED_EFFECT ' + c.id);
+      if (a.kind === 'nickname') renderNickname(a.value, 'zero');
+    }
     if (c.rarity === 'SSR' && manifest.ssr_animations[c.id]?.key !== c.animation_key)
       throw Error('SSR_KEY');
   }

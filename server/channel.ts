@@ -1,3 +1,4 @@
+import { visibleReport } from './nickname.js';
 import { createHash } from 'node:crypto';
 import type { DiscordPort } from './discord.js';
 import { Store, Locks } from './db.js';
@@ -88,9 +89,11 @@ export class ChannelPosts {
               value: `${({ tatsumaki: '龙卷', ren_yamashiro: '山城恋', yuzuha_lee: '李柚巴' } as Record<string, string>)[c.character]} · ${c.rarity} · ${c.name}`,
             },
             {
-              name: '最终昵称、持续时间与内部状态',
+              name: '最终昵称、持续时间与机制结果',
               value:
-                (JSON.parse(j.report || '[]') as string[]).join('\n').slice(0, 1024) || '已结算',
+                visibleReport(JSON.parse(j.report || '[]'))
+                  .join('\n')
+                  .slice(0, 1024) || '已结算',
             },
           ],
           image: { url: new URL(image, this.origin).href },

@@ -31,6 +31,7 @@ export class Store {
           );
         this.run('INSERT INTO metadata VALUES(?,?)', 'candidate2:migrated', '1');
       });
+    this.run("UPDATE active_effects SET status='ignored' WHERE kind='state'");
     // Old Role records are historical only. Never call Discord Role writes, even during recovery.
     this.run("UPDATE active_effects SET status='legacy_retired' WHERE kind='role'");
   }

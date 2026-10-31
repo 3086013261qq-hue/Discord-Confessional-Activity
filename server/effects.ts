@@ -4,21 +4,11 @@ import { Store, Locks } from './db.js';
 import type { DiscordPort } from './discord.js';
 import { byId, details, rank, roll } from './cards.js';
 export const locks = new Locks();
-export function safeNickname(prefix: string, original: string, max = 32) {
-  const size = (s: string) => s.length;
-  let out = '';
-  const seg = new Intl.Segmenter('zh', { granularity: 'grapheme' });
-  if (size(prefix) > max) throw Error('PREFIX_TOO_LONG');
-  if (size(prefix + original) <= max) return prefix + original;
-  for (const { segment } of seg.segment(original)) {
-    if (size(prefix + out + segment + '…') > max) break;
-    out += segment;
-  }
-  return prefix + out + (size(prefix) < max ? '…' : '');
-}
+import { renderNickname, opportunityNames } from './nickname.js';
+export { safeNickname, renderNickname } from './nickname.js';
 export interface Plan {
   actions: Action[];
-  cleanse?: { max: number; character?: string; kind?: string; limit?: number; roleLimit?: number };
+  cleanse?: { max: number; character?: string; kind?: string; limit?: number };
   special?: string;
   secondary?: string;
   notes: string[];
@@ -62,7 +52,7 @@ export class Effects {
   }
   active(user: string) {
     return this.db.all(
-      "SELECT * FROM active_effects WHERE user_id=? AND status IN ('planned','active','restoring','restore_blocked') ORDER BY created_at",
+      "SELECT * FROM active_effects WHERE user_id=? AND kind='nickname' AND status IN ('planned','active','restoring','restore_blocked') ORDER BY created_at",
       user,
     );
   }
@@ -71,20 +61,20 @@ export class Effects {
     const i = JSON.parse(j.interaction || '{}');
     const registry: Record<string, () => void> = {
       cleanse_or_immunity_r: () => {
-        p.cleanse = { max: 3, kind: 'nickname', limit: 1 };
+        p.cleanse = { max: 1, kind: 'nickname', limit: 1 };
         p.special = 'immunity_if_none';
       },
       cleanse_tatsumaki_r: () => {
         p.cleanse = { max: 1 };
       },
       cleanse_ren_r_sr: () => {
-        p.cleanse = { max: 2, character: 'ren_yamashiro', roleLimit: 1 };
+        p.cleanse = { max: 2, character: 'ren_yamashiro', limit: 1 };
       },
       cleanse_one_r_sr_punishment: () => {
         p.special = 'cleanse_one_nickname_first';
       },
       compound_tatsumaki_ssr_blessing: () => {
-        p.cleanse = { max: 3 };
+        p.cleanse = { max: 2 };
       },
       compound_ren_ssr_blessing: () => {
         p.cleanse = { max: 2, character: 'ren_yamashiro' };
@@ -94,7 +84,6 @@ export class Effects {
       },
       compound_tatsumaki_ssr_punishment: () => {
         p.secondary = this.secondary('tatsumaki', 'reversed');
-        p.failureTitle = '龙卷今天真的很生气';
       },
       compound_extra_yuzuha_r_heaven: () => {
         p.secondary = this.secondary('yuzuha_lee', 'upright');
@@ -110,18 +99,15 @@ export class Effects {
       interaction_absolute_order_three_choices: () => {
         if (i.choice === 'nickname') {
           const id = this.pick(['P-REN-02', 'P-REN-04']);
-          p.actions.push(...structuredClone(details[id].actions));
+          p.actions = structuredClone(details[id].actions);
         }
       },
       interaction_one_more_round_50_50: () => {
         p.actions = [];
         if (i.choice === 'coward')
-          p.actions.push({ kind: 'state', value: '😼 李柚巴认证·怂了', hours: 2 });
+          p.actions.push({ kind: 'nickname', value: '李柚巴认证{name}怂了', hours: 2 });
         else if (!i.win)
-          p.actions.push(
-            { kind: 'nickname', value: '刚输给李柚巴的', hours: 2 },
-            { kind: 'state', value: '🎲 赌债未清', hours: 3 },
-          );
+          p.actions.push({ kind: 'nickname', value: '{name}又输给李柚巴一次', hours: 3 });
         p.notes.push(
           i.choice === 'coward'
             ? '已选择我怂了'
@@ -133,12 +119,9 @@ export class Effects {
       interaction_double_or_nothing_server_rng: () => {
         p.actions = [];
         if (i.choice !== 'double')
-          p.actions.push({ kind: 'state', value: '🎲 赌债未清', hours: 4 });
+          p.actions.push({ kind: 'nickname', value: '{name}还欠李柚巴一笔赌债', hours: 4 });
         else if (!i.win)
-          p.actions.push(
-            { kind: 'nickname', value: '输给李柚巴两次的', hours: 6 },
-            { kind: 'state', value: '🎲 双倍赌债', hours: 6 },
-          );
+          p.actions.push({ kind: 'nickname', value: '{name}连续输给李柚巴两次', hours: 6 });
         p.notes.push(
           i.choice !== 'double'
             ? '维持基础刑罚'
@@ -184,16 +167,15 @@ export class Effects {
   }
   async execute(user: string, j: any) {
     const card = byId.get(j.card_id)!;
-    if (j.plan) {
-      const legacy = JSON.parse(j.plan);
-      for (const a of legacy.actions) if (a.kind === 'role') a.kind = 'state';
-      this.db.run('UPDATE judgments SET plan=? WHERE id=?', JSON.stringify(legacy), j.id);
-      j.plan = JSON.stringify(legacy);
-    }
     if (j.report) return JSON.parse(j.report) as string[];
     let plan: Plan;
-    if (j.plan) plan = JSON.parse(j.plan);
+    const saved = j.plan ? JSON.parse(j.plan) : null;
+    const legacy = saved?.actions?.some((a: any) => !['nickname', 'token'].includes(a.kind));
+    if (saved && !legacy) plan = saved;
     else {
+      // Rebuild unfinished legacy cards by Card ID, including interactive outcome.
+      // A previous preparation gate must not preserve an obsolete role/state plan.
+      if (legacy) this.db.run('DELETE FROM metadata WHERE key=?', 'prepared:' + j.id);
       plan = this.build(card, j); // Persist all random branches before any Discord write.
       this.db.run(
         "UPDATE judgments SET plan=?,execution_status='executing' WHERE id=?",
@@ -223,15 +205,6 @@ export class Effects {
             this.consume(user, 'lucky_chip');
             blocked = true;
           }
-          if (
-            !blocked &&
-            card.rarity === 'R' &&
-            plan.actions.some((a) => a.kind === 'nickname') &&
-            this.consume(user, 'immunity_r')
-          ) {
-            plan.actions = plan.actions.filter((a) => a.kind !== 'nickname');
-            notes.push('免罚印记抵消 R 级昵称刑罚');
-          }
         }
         if (blocked) {
           plan.actions = plan.actions.filter((a) => a.kind === 'token');
@@ -244,11 +217,26 @@ export class Effects {
             ['lucky_chip', 'free_reroll', 'hell_reroll_token'].includes(k),
           );
           if (available.length) this.consume(user, this.pick(available));
-          else plan.actions.push({ kind: 'state', value: '🪙 今日手气欠佳', hours: 3 });
+          else if (plan.special === 'remove_luck')
+            plan.actions.push({
+              kind: 'nickname',
+              value: '{name}今天的手气被李柚巴收走了',
+              hours: 3,
+            });
+          if (available.length) notes.push('已移除一次好运或重抽机会');
+        }
+        if (
+          !blocked &&
+          card.alignment === 'reversed' &&
+          card.rarity === 'R' &&
+          plan.actions.some((a) => a.kind === 'nickname') &&
+          this.consume(user, 'immunity_r')
+        ) {
+          plan.actions = plan.actions.filter((a) => a.kind !== 'nickname');
+          notes.push('免罚印记抵消 R 级昵称刑罚');
         }
         if (plan.cleanse) {
           const f = plan.cleanse;
-          let roleCount = 0;
           plan.cleanseIds = active
             .filter((e) => {
               const c = byId.get(e.card_id)!;
@@ -256,8 +244,7 @@ export class Effects {
                 c.alignment === 'reversed' &&
                 rank[c.rarity] <= f.max &&
                 (!f.character || c.character === f.character) &&
-                (!f.kind || e.kind === f.kind) &&
-                (!f.roleLimit || e.kind !== 'state' || roleCount++ < f.roleLimit)
+                (!f.kind || e.kind === f.kind)
               );
             })
             .slice(0, f.limit ?? Infinity)
@@ -269,7 +256,7 @@ export class Effects {
             const c = byId.get(e.card_id)!;
             return c.alignment === 'reversed' && rank[c.rarity] <= 2;
           });
-          const e = all.find((e) => e.kind === 'nickname') || all.find((e) => e.kind === 'state');
+          const e = all.find((e) => e.kind === 'nickname');
           plan.cleanseIds = e ? [e.id] : [];
         }
         if (card.alignment === 'upright' && card.rarity !== 'R')
@@ -287,17 +274,19 @@ export class Effects {
           ];
         if (plan.special === 'dealer_cut') {
           const positive = active.filter((e) => byId.get(e.card_id)!.alignment === 'upright');
-          const target =
-            positive.find((e) => e.kind === 'state' && byId.get(e.card_id)!.rarity === 'R') ||
-            positive.find(
-              (e) => rank[byId.get(e.card_id)!.rarity] <= 2 && e.expires_at - this.now() > 1800000,
-            );
+          const target = positive.find(
+            (e) => rank[byId.get(e.card_id)!.rarity] <= 2 && e.expires_at > this.now(),
+          );
           if (target) {
             plan.specialTarget = target.id;
-            if (!(target.kind === 'state' && byId.get(target.card_id)!.rarity === 'R'))
-              plan.specialNewExpiry =
-                this.now() + Math.max(1800000, (target.expires_at - this.now()) / 2);
-          }
+            plan.specialNewExpiry = this.now() + (target.expires_at - this.now()) / 2;
+            notes.push('已削减一次天堂昵称奖励剩余时长');
+          } else
+            plan.actions.push({
+              kind: 'nickname',
+              value: '李柚巴没收了{name}今天的好运',
+              hours: 3,
+            });
         }
         this.db.run('INSERT INTO metadata VALUES(?,?)', 'prepared:' + j.id, '1');
         plan.notes = notes;
@@ -310,7 +299,10 @@ export class Effects {
     try {
       for (const id of plan.cleanseIds || []) {
         const e = this.db.get<any>('SELECT * FROM active_effects WHERE id=?', id);
-        if (e) await this.restore(e);
+        if (e) {
+          await this.restore(e);
+          notes.push('已解除一次昵称刑罚');
+        }
       }
       if (!this.db.get('SELECT 1 FROM metadata WHERE key=?', 'special:' + j.id)) {
         if (
@@ -319,11 +311,16 @@ export class Effects {
           plan.specialNewExpiry === undefined
         ) {
           const e = this.db.get<any>('SELECT * FROM active_effects WHERE id=?', plan.specialTarget);
-          if (e) await this.restore(e);
+          if (e) {
+            await this.restore(e);
+            notes.push('已解除一次昵称刑罚');
+          }
         }
         this.db.tx(() => {
-          if (plan.special === 'immunity_if_none' && plan.immunityGrant)
+          if (plan.special === 'immunity_if_none' && plan.immunityGrant) {
             this.grant(user, 'immunity_r', 24, j.id);
+            notes.push('获得一次 R 级昵称免罚机会');
+          }
           if (
             plan.special === 'dealer_cut' &&
             plan.specialTarget &&
@@ -335,14 +332,19 @@ export class Effects {
               plan.specialTarget,
             );
           if (plan.special === 'double_reward') {
-            const eligible = plan.actions.filter(
-              (a) => a.kind === 'nickname' || a.kind === 'state',
+            const target = this.active(user).find(
+              (e) => byId.get(e.card_id)?.alignment === 'upright' && e.expires_at > this.now(),
             );
-            if (!eligible.length) this.grant(user, 'free_reroll', 24, j.id);
-            else {
-              for (const a of eligible)
-                a.hours = Math.min(a.hours * 2, a.kind === 'nickname' ? 12 : 24);
-              this.db.run('UPDATE judgments SET plan=? WHERE id=?', JSON.stringify(plan), j.id);
+            if (!target) {
+              this.grant(user, 'free_reroll', 24, j.id);
+              notes.push('获得一次免费重抽');
+            } else {
+              this.db.run(
+                'UPDATE active_effects SET expires_at=? WHERE id=?',
+                this.now() + Math.min((target.expires_at - this.now()) * 2, 12 * 3600000),
+                target.id,
+              );
+              notes.push('已翻倍当前昵称奖励剩余时间，上限 12h');
             }
           }
           this.db.run('INSERT INTO metadata VALUES(?,?)', 'special:' + j.id, '1');
@@ -361,21 +363,18 @@ export class Effects {
         if (result.includes('未执行')) degraded = true;
       } catch (e) {
         degraded = true;
-        notes.push(
-          '服务器效果未执行，已转为忏悔室内部称号：' + action.value + '（' + this.error(e) + '）',
-        );
+        notes.push('昵称未执行：' + action.value + '（' + this.error(e) + '）');
       }
     }
-    if (degraded && plan.failureTitle) notes.push('忏悔室内部称号：' + plan.failureTitle);
     const status = degraded ? 'degraded' : 'executed';
     this.db.run(
       'UPDATE judgments SET execution_status=?,report=? WHERE id=?',
       status,
-      JSON.stringify(notes.length ? notes : ['Activity 状态已结算']),
+      JSON.stringify(notes.length ? notes : ['判决机制已结算']),
       j.id,
     );
     this.db.run("UPDATE sessions SET status='SETTLED' WHERE id=?", j.session_id);
-    return notes.length ? notes : ['Activity 状态已结算'];
+    return notes.length ? notes : ['判决机制已结算'];
   }
   error(e: unknown) {
     return e instanceof Error ? e.message.slice(0, 100) : 'UNKNOWN_ERROR';
@@ -388,8 +387,9 @@ export class Effects {
           this.db.run('INSERT INTO metadata VALUES(?,?)', 'token:' + j.id + ':' + key, '1');
         }
       });
-      return '已获得状态：' + a.value;
+      return '获得一次可用机会：' + (opportunityNames[a.value] || a.value);
     }
+    if (a.kind !== 'nickname') throw Error('UNSUPPORTED_EFFECT');
     let e = this.db.get<any>(
       'SELECT * FROM active_effects WHERE judgment_id=? AND effect_key=? AND kind=?',
       j.id,
@@ -409,13 +409,18 @@ export class Effects {
         if (old) {
           const oc = byId.get(old.card_id)!;
           if (old.expires_at > this.now() && rank[oc.rarity] > rank[card.rarity])
-            return '已保留更高优先级昵称；内部称号：' + a.value;
+            return '已保留更高优先级昵称：' + old.applied_value;
           await this.restore(old);
+          if (
+            this.db.get<any>('SELECT status FROM active_effects WHERE id=?', old.id)?.status ===
+            'manual_changed'
+          )
+            return '昵称未执行：用户已自行改名，保留新昵称';
           this.db.run("UPDATE active_effects SET status='superseded' WHERE id=?", old.id);
         }
         const fresh = await this.discord.member(user);
         original = fresh.nickname;
-        applied = safeNickname(a.value, fresh.nickname ?? fresh.display);
+        applied = renderNickname(a.value, fresh.nickname ?? fresh.display);
       }
 
       e = {
@@ -462,15 +467,19 @@ export class Effects {
         }
       }
       this.db.run("UPDATE active_effects SET status='active',last_error=NULL WHERE id=?", e.id);
-      return `${a.kind === 'nickname' ? '服务器昵称' : '内部状态'}已执行：${e.applied_value} · ${a.hours}h`;
+      return `服务器昵称已执行：${e.applied_value} · ${a.hours}h`;
     } catch (err) {
       this.db.run('UPDATE active_effects SET last_error=? WHERE id=?', this.error(err), e.id);
       throw err;
     }
   }
   async restore(e: any) {
-    if (e.kind === 'role') {
-      this.db.run("UPDATE active_effects SET status='legacy_retired' WHERE id=?", e.id);
+    if (e.kind !== 'nickname') {
+      this.db.run(
+        'UPDATE active_effects SET status=? WHERE id=?',
+        e.kind === 'role' ? 'legacy_retired' : 'ignored',
+        e.id,
+      );
       return;
     }
     if (['restored', 'manual_changed', 'superseded', 'legacy_retired'].includes(e.status)) return;

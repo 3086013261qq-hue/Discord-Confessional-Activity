@@ -1,3 +1,4 @@
+import { visibleReport } from './nickname.js';
 import { randomUUID, randomInt, createHash } from 'node:crypto';
 import { Store } from './db.js';
 import { Effects, locks } from './effects.js';
@@ -273,7 +274,7 @@ export class Service {
       interaction: JSON.parse(j.interaction),
       rerolled: j.rerolled,
       ...(reveal ? { card: c, detail: details[c.id], art_urls: artUrls(c) } : {}),
-      ...(j.report ? { report: JSON.parse(j.report) } : {}),
+      ...(j.report ? { report: visibleReport(JSON.parse(j.report)) } : {}),
     };
   }
   snapshot(actor: Actor, id?: string): Snapshot {
@@ -700,11 +701,11 @@ export class Service {
                 (k === 'hell_reroll_token' ||
                   (k === 'judgment_redraw_token' && c.rarity !== 'SSR'))),
           );
-          requireThat(key, '没有可用重抽状态');
+          requireThat(key, '没有可用重抽机会');
           const { card, audit } = draw(j.verdict, this.rng, c.id);
           const id = randomUUID();
           this.db.tx(() => {
-            requireThat(this.effects.consume(actor.user, key), '状态已消耗');
+            requireThat(this.effects.consume(actor.user, key), '机会已消耗');
             this.db.run("UPDATE judgments SET execution_status='superseded' WHERE id=?", j.id);
             this.db.run(
               'INSERT INTO judgments(id,session_id,verdict,card_id,rng,created_at,rerolled) VALUES(?,?,?,?,?,?,1)',

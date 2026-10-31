@@ -1,5 +1,6 @@
 {
   "schema_version": "1.0",
+  "content_version": "0.2.1-nickname-only",
   "product": "Discord Confessional Activity",
   "selection": {
     "alignment_from_verdict": {
@@ -98,8 +99,7 @@
   },
   "execution_types": {
     "nickname": "temporary_nickname_with_safe_restore",
-    "state": "temporary_activity_state",
-    "state": "activity_session_or_account_state",
+    "token": "hidden_one_use_opportunity",
     "interaction": "activity_required_interaction",
     "cleanse": "remove_bot_owned_effects_only",
     "compound": "multiple_effects_with_priority_rules"

@@ -122,7 +122,7 @@ test('nickname actual port write and safe restore, null baseline, grapheme trunc
   await effects.execute('user', j);
   const n = (await discord.member('user')).nickname!;
   assert.ok(n.length <= 32);
-  assert.ok(n.startsWith('被龙卷打屁股的'));
+  assert.ok(n.endsWith('的屁股被龙卷踢了'));
   assert.ok(!/\uFFFD/.test(n));
   time.advance(3 * 3600000);
   await effects.tick();
@@ -146,7 +146,7 @@ test('nickname replacement keeps true original baseline and no prefix stacking',
   await effects.execute('user', createJ(db, 'P-TAT-02'));
   db.run("UPDATE judgments SET execution_status='superseded'");
   await effects.execute('user', createJ(db, 'P-REN-07'));
-  assert.equal((await discord.member('user')).nickname, '山城恋认证的乖狗狗原昵称');
+  assert.equal((await discord.member('user')).nickname, '原昵称被山城恋认证为乖狗狗');
   time.advance(7 * 3600000);
   await effects.tick();
   assert.equal((await discord.member('user')).nickname, '原昵称');
@@ -248,7 +248,7 @@ test('protection excludes SSR; lucky chip only cancels R; cleanse only eligible 
   assert.ok(discord.calls.length > 0);
   db.run("UPDATE judgments SET execution_status='superseded'");
   await effects.execute('user', createJ(db, 'H-LYB-10'));
-  assert.ok((await discord.member('user')).nickname?.includes('山城恋'));
+  assert.ok((await discord.member('user')).nickname?.includes('JACKPOT'));
 });
 test('one reroll token, persisted replacement and no consecutive reroll', async () => {
   const { db, service, effects } = setup();

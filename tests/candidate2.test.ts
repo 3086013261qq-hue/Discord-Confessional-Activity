@@ -207,14 +207,14 @@ test('C2 channel delivery: definite rejection is retryable; ambiguous failure/re
   );
   assert.equal(calls, 3);
 });
-test('C2 all former role cards have observable internal state; Discord port without Role methods executes all 60 cards', async () => {
+test('C2 all former role cards have nickname or meaningful mechanism; Discord port without Role methods executes all 60 cards', async () => {
   for (const c of cards) {
     const { db, effects, discord } = setup();
     for (const key of ['ensureRole', 'addRole', 'removeRole'])
       (discord as any)[key] = () => {
         throw Error('ROLE_API_FORBIDDEN');
       };
-    assert.ok(details[c.id].actions.every((a) => ['nickname', 'state', 'token'].includes(a.kind)));
+    assert.ok(details[c.id].actions.every((a) => ['nickname', 'token'].includes(a.kind)));
     db.run(
       "INSERT INTO sessions(id,anonymous_id,user_id,status,created_at) VALUES('s','匿名','u','REVEALED',0)",
     );
