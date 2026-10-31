@@ -1,0 +1,14 @@
+{
+  "environment": "Headless Chromium, simulated touch 360x800, test-only Discord adapter; NOT real Android/Discord",
+  "results": [
+    "360x800 anonymous two-client chat and sticker PASS",
+    "five targets >=44px; manual choice, execution and reload idempotency PASS",
+    "ssr_tatsumaki_eye_of_storm_blessing render and settlement PASS",
+    "ssr_tatsumaki_eye_of_storm render and settlement PASS",
+    "ssr_ren_beside_the_throne render and settlement PASS",
+    "ssr_ren_bow_before_the_throne render and settlement PASS",
+    "ssr_yuzuha_jackpot render and settlement PASS",
+    "ssr_yuzuha_house_wins render and settlement PASS"
+  ],
+  "page_errors": []
+}

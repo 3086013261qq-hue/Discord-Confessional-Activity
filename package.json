@@ -1,0 +1,43 @@
+{
+  "name": "discord-confessional-activity",
+  "private": true,
+  "version": "0.1.0-candidate1",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "server": "node --import tsx server/index.ts",
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check": "npm run build && npm test && npm run test:assets",
+    "start": "node --import tsx server/index.ts",
+    "test:browser": "node --import tsx tests/browser.ts",
+    "recover": "node --import tsx scripts/recover-effect.ts",
+    "format:check": "prettier --check client server shared/types.ts tests vite.config.ts",
+    "test:assets": "node --import tsx scripts/verify-source-assets.ts"
+  },
+  "dependencies": {
+    "@discord/embedded-app-sdk": "^2.0.0",
+    "discord.js": "^14.0.0",
+    "dotenv": "^17.0.0",
+    "express": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsx": "^4.0.0",
+    "ws": "^8.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/ws": "^8.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.0.0",
+    "vite": "^7.0.0"
+  }
+}

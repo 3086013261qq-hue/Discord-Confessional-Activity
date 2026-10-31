@@ -1,0 +1,36 @@
+{
+  "sources": [
+    {
+      "runtime": "assets/icon-128.png",
+      "source": "应用封面图标_黑白祈祷修女.png",
+      "source_sha256": "b6c1af365ace0bba7fd504334ed91f35394e3bfcf76e2446e7198243f382c477"
+    },
+    {
+      "runtime": "assets/icon-256.png",
+      "source": "应用封面图标_黑白祈祷修女.png",
+      "source_sha256": "b6c1af365ace0bba7fd504334ed91f35394e3bfcf76e2446e7198243f382c477"
+    },
+    {
+      "runtime": "assets/icon-512.png",
+      "source": "应用封面图标_黑白祈祷修女.png",
+      "source_sha256": "b6c1af365ace0bba7fd504334ed91f35394e3bfcf76e2446e7198243f382c477"
+    },
+    {
+      "runtime": "assets/nuns/tatsumaki.webp",
+      "source": "三位修女老板娘/龙卷_修女老板娘.png",
+      "source_sha256": "1834edcd8f38ae5935a78625f74d7053e04b5345ae87a16199642a4c70b6df53"
+    },
+    {
+      "runtime": "assets/nuns/ren_yamashiro.webp",
+      "source": "三位修女老板娘/山城恋_修女老板娘.png",
+      "source_sha256": "b2bebada8ad7fbec4120bda0583e65875c138fae0d127579fdccf2471b6e6221"
+    },
+    {
+      "runtime": "assets/nuns/yuzuha_lee.webp",
+      "source": "三位修女老板娘/李柚巴_修女老板娘.png",
+      "source_sha256": "d97571a79380381ab9783f5921b97be8486461634875e626062aa06c8d4a3e0f"
+    }
+  ],
+  "sticker_master_sha256": "0f4d2846f5e006a726748f3a99c57f98121d050254722f8e64efd42f9de6a8f7",
+  "alternate_sticker_master": "哥特修女多姿态贴纸集.png (reserved, unchanged)"
+}

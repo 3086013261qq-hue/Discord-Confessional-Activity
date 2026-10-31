@@ -1,0 +1,14 @@
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, anonymous_id TEXT NOT NULL, user_id TEXT, nun_id TEXT, status TEXT NOT NULL, priority INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, closed_at INTEGER);
+CREATE UNIQUE INDEX IF NOT EXISTS one_open_session ON sessions(user_id) WHERE closed_at IS NULL;
+CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), sender_type TEXT NOT NULL, type TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS judgments(id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), verdict TEXT NOT NULL, card_id TEXT NOT NULL, rng TEXT NOT NULL, created_at INTEGER NOT NULL, selected_index INTEGER, revealed_at INTEGER, execution_status TEXT NOT NULL DEFAULT 'pending', interaction TEXT NOT NULL DEFAULT '{}', plan TEXT, report TEXT, rerolled INTEGER NOT NULL DEFAULT 0);
+CREATE UNIQUE INDEX IF NOT EXISTS judgment_once ON judgments(session_id) WHERE execution_status != 'superseded';
+CREATE TABLE IF NOT EXISTS active_effects(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, judgment_id TEXT NOT NULL, card_id TEXT NOT NULL, effect_key TEXT NOT NULL, kind TEXT NOT NULL, original_value TEXT, applied_value TEXT NOT NULL, expires_at INTEGER NOT NULL, status TEXT NOT NULL, last_error TEXT, retry_count INTEGER NOT NULL DEFAULT 0, next_retry_at INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS effect_operation ON active_effects(judgment_id,effect_key,kind);
+CREATE TABLE IF NOT EXISTS tokens(user_id TEXT NOT NULL, key TEXT NOT NULL, expires_at INTEGER NOT NULL, judgment_id TEXT NOT NULL, PRIMARY KEY(user_id,key));
+CREATE TABLE IF NOT EXISTS managed_roles(name TEXT PRIMARY KEY, role_id TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS auth_tokens(hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, is_nun INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS requests(user_id TEXT NOT NULL, request_id TEXT NOT NULL, operation TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(user_id,request_id));
+CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);

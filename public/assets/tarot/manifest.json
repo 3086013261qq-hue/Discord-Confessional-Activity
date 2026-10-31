@@ -1,0 +1,162 @@
+{
+  "content_version": "candidate1-1",
+  "assets": [
+    {
+      "character": "tatsumaki",
+      "asset_id": "95672036_p1_master1200.webp",
+      "path": "public/assets/tarot/characters/龙卷/95672036_p1_master1200.webp",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": false,
+      "adult_only": true
+    },
+    {
+      "character": "tatsumaki",
+      "asset_id": "images (20).jpeg",
+      "path": "public/assets/tarot/characters/龙卷/images (20).jpeg",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": true,
+      "adult_only": false
+    },
+    {
+      "character": "ren_yamashiro",
+      "asset_id": "150648311-989193ee0f51ed2a0c376e275a283828_p0_master1200.webp",
+      "path": "public/assets/tarot/characters/山城恋/150648311-989193ee0f51ed2a0c376e275a283828_p0_master1200.webp",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": true,
+      "adult_only": false
+    },
+    {
+      "character": "ren_yamashiro",
+      "asset_id": "images (18).jpeg",
+      "path": "public/assets/tarot/characters/山城恋/images (18).jpeg",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": true,
+      "adult_only": false
+    },
+    {
+      "character": "ren_yamashiro",
+      "asset_id": "images (19).jpeg",
+      "path": "public/assets/tarot/characters/山城恋/images (19).jpeg",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": true,
+      "adult_only": false
+    },
+    {
+      "character": "yuzuha_lee",
+      "asset_id": "-9lddQ2u-4ckqK1eT1kScg-fy.jpg",
+      "path": "public/assets/tarot/characters/李柚巴/-9lddQ2u-4ckqK1eT1kScg-fy.jpg",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": true,
+      "adult_only": false
+    },
+    {
+      "character": "yuzuha_lee",
+      "asset_id": "120600389_p1_master1200.webp",
+      "path": "public/assets/tarot/characters/李柚巴/120600389_p1_master1200.webp",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": true,
+      "adult_only": false
+    },
+    {
+      "character": "yuzuha_lee",
+      "asset_id": "124559646_p0_master1200.webp",
+      "path": "public/assets/tarot/characters/李柚巴/124559646_p0_master1200.webp",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": false,
+      "adult_only": true
+    },
+    {
+      "character": "yuzuha_lee",
+      "asset_id": "137522296_p0_master1200.webp",
+      "path": "public/assets/tarot/characters/李柚巴/137522296_p0_master1200.webp",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": true,
+      "adult_only": false
+    },
+    {
+      "character": "yuzuha_lee",
+      "asset_id": "146260292_p0_master1200.webp",
+      "path": "public/assets/tarot/characters/李柚巴/146260292_p0_master1200.webp",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": false,
+      "adult_only": true
+    },
+    {
+      "character": "yuzuha_lee",
+      "asset_id": "146266199_p0_master1200.webp",
+      "path": "public/assets/tarot/characters/李柚巴/146266199_p0_master1200.webp",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": false,
+      "adult_only": true
+    },
+    {
+      "character": "yuzuha_lee",
+      "asset_id": "images (17).jpeg",
+      "path": "public/assets/tarot/characters/李柚巴/images (17).jpeg",
+      "alignment": "both",
+      "rarity": [
+        "R",
+        "SR",
+        "SSR"
+      ],
+      "enabled": true,
+      "adult_only": false
+    }
+  ],
+  "policy": "Candidate1 uses enabled non-adult runtime art only; originals unchanged. Adult mode is disabled."
+}
